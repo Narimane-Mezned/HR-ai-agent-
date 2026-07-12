@@ -5,3 +5,5 @@ __pycache__/
 *.db
 .chroma/
 .DS_Store
+
+data/sample_cvs/*.pdf
