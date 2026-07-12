@@ -2,9 +2,9 @@
 
 Informal but evidence-based observations from manually testing `screen_candidate()`
 against a real CV across multiple job descriptions and free-tier models on
-OpenRouter. These are early notes from Week 2 development, meant to inform the
-Week 5 cost/quality optimization work — not a formal evaluation (that comes in
-Week 6 with a proper labeled test set and repeatable eval pipeline).
+OpenRouter. These are early, informal notes from initial development and manual
+testing — not a formal evaluation. A proper evaluation pipeline (labeled test set,
+repeatable scoring, multiple runs per case) is planned as a next step.
 
 ## Test setup
 
@@ -43,9 +43,9 @@ Week 6 with a proper labeled test set and repeatable eval pipeline).
 3. **Run-to-run variance is real, even at low temperature.** The exact same CV +
    job description produced a 0 on one run and a 25 on an identical rerun with
    the same model. Any single evaluation of a model's quality should be treated
-   as one data point, not a verdict — this is part of the motivation for
-   Week 6's proper eval pipeline (multiple runs, labeled ground truth, not
-   spot-checks).
+   as one data point, not a verdict — this is part of the motivation for building
+   a proper evaluation pipeline (multiple runs, labeled ground truth) rather than
+   relying on spot-checks like these.
 
 4. **Free-tier routing introduces its own failure modes**, separate from model
    capability: the `openrouter/free` auto-router occasionally routed requests to
@@ -56,7 +56,7 @@ Week 6 with a proper labeled test set and repeatable eval pipeline).
    (b) pinning to a specific named model instead of the auto-router, for
    predictability.
 
-## Implication for Week 5
+## Implication for model routing strategy
 
 This motivates a concrete routing strategy rather than a hypothetical one:
 smaller/cheaper models are trustworthy for direct skill/keyword matching, but
