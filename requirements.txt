@@ -3,3 +3,5 @@ python-dotenv
 pydantic
 pymupdf
 chromadb
+langgraph
+langchain-core
