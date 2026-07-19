@@ -1,15 +1,14 @@
-
 from app.db.database import get_connection
 
 
 def create_job(title: str, description: str, requirements: str, created_by: str) -> int:
-    
+
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute(
         "INSERT INTO jobs (title, description, requirements, created_by) VALUES (?, ?, ?, ?)",
-        (title, description, requirements, created_by),
+        (title, description, requirements, created_by.strip()),
     )
 
     conn.commit()
@@ -31,7 +30,7 @@ def get_job(job_id: int) -> dict | None:
 
 
 def list_jobs(created_by: str = None) -> list[dict]:
-   
+    
     conn = get_connection()
     cursor = conn.cursor()
 

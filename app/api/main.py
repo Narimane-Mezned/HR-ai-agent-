@@ -1,5 +1,6 @@
 import tempfile
 import os
+from app.agents.scheduling_agent import propose_interview_slots, build_confirmation_message
 
 from fastapi import FastAPI, UploadFile, File, Form
 
@@ -8,6 +9,8 @@ from app.db.candidates import create_candidate
 from app.db.screenings import list_screenings_for_job
 from app.pdf_utils import extract_text_from_pdf
 from app.graph.orchestrator import screen_candidates_for_job
+from app.agents.scheduling_agent import propose_interview_slots
+from app.db.interviews import create_interview, list_interviews_for_hr
 
 app = FastAPI(title="HR AI Agent API")
 
@@ -82,3 +85,29 @@ def api_screen_candidates(job_id: int, candidate_ids: str = Form(...)):
 @app.get("/jobs/{job_id}/screenings")
 def api_get_screenings(job_id: int):
     return list_screenings_for_job(job_id)
+
+
+
+@app.post("/screenings/propose-times")
+def api_propose_times(candidate_name: str = Form(...), job_title: str = Form(...)):
+    return propose_interview_slots(candidate_name, job_title)
+
+
+
+@app.post("/interviews")
+def api_create_interview(candidate_id: int = Form(...), job_id: int = Form(...), confirmed_time: str = Form(...), created_by: str = Form(...)):
+    from app.db.candidates import get_candidate
+    from app.db.jobs import get_job
+
+    interview_id = create_interview(candidate_id, job_id, confirmed_time, created_by)
+
+    candidate = get_candidate(candidate_id)
+    job = get_job(job_id)
+    message = build_confirmation_message(candidate["name"], job["title"], confirmed_time)
+
+    return {"id": interview_id, "confirmed_time": confirmed_time, "confirmation_message": message}
+
+
+@app.get("/interviews")
+def api_list_interviews(created_by: str):
+    return list_interviews_for_hr(created_by)
