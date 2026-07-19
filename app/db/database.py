@@ -1,6 +1,7 @@
 import sqlite3
-
-DB_PATH = "hr_agent.db"  
+import os
+DB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "hr_agent.db")
+DB_PATH = os.path.abspath(DB_PATH)
 
 
 def get_connection() -> sqlite3.Connection:
