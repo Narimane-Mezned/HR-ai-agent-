@@ -50,6 +50,12 @@ def init_db() -> None:
             FOREIGN KEY (job_id) REFERENCES jobs(id)
         )
     """)
+    
+    cursor.execute("PRAGMA table_info(candidates)")
+    columns = [row[1] for row in cursor.fetchall()]
+    if "created_by" not in columns:
+        cursor.execute("ALTER TABLE candidates ADD COLUMN created_by TEXT")
+        print("DEBUG: migrated candidates table, added created_by column")
 
     conn.commit()
     conn.close()

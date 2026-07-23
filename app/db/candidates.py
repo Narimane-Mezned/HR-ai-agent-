@@ -1,14 +1,14 @@
 from app.db.database import get_connection
 
 
-def create_candidate(name: str, cv_text: str) -> int:
+def create_candidate(name: str, cv_text: str, created_by: str) -> int:
     
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute(
-        "INSERT INTO candidates (name, cv_text) VALUES (?, ?)",
-        (name, cv_text),
+        "INSERT INTO candidates (name, cv_text, created_by) VALUES (?, ?, ?)",
+        (name, cv_text, created_by),
     )
 
     conn.commit()
@@ -18,7 +18,7 @@ def create_candidate(name: str, cv_text: str) -> int:
 
 
 def get_candidate(candidate_id: int) -> dict | None:
-    """Fetches one candidate by id. Returns None if it doesn't exist."""
+    
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -29,12 +29,12 @@ def get_candidate(candidate_id: int) -> dict | None:
     return dict(row) if row else None
 
 
-def list_candidates() -> list[dict]:
-   
+def list_candidates(created_by: str) -> list[dict]:
+    
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM candidates ORDER BY created_at DESC")
+    cursor.execute("SELECT * FROM candidates WHERE created_by = ? ORDER BY created_at DESC", (created_by,))
     rows = cursor.fetchall()
     conn.close()
 
