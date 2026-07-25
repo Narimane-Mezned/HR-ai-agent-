@@ -82,6 +82,7 @@ def init_db() -> None:
         CREATE UNIQUE INDEX IF NOT EXISTS idx_screenings_candidate_job
         ON screenings(candidate_id, job_id)
     """)
+    
 
     
     def ensure_column(table, column, coltype):
@@ -92,6 +93,7 @@ def init_db() -> None:
             print(f"DEBUG: migrated {table}, added {column}")
 
     ensure_column("candidates", "created_by", "TEXT")
+    ensure_column("candidates", "applied_job_id", "INTEGER")
     ensure_column("users", "company_name", "TEXT")
     ensure_column("users", "email", "TEXT")
     ensure_column("screenings", "skills", "TEXT")

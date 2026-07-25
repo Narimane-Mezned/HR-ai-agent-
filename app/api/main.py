@@ -287,3 +287,42 @@ app.mount("/static", StaticFiles(directory="frontend"), name="static")
 @app.get("/app")
 def serve_frontend():
     return FileResponse("frontend/index.html")
+
+# --- job posting  ---
+@app.get("/public/jobs/{job_id}")
+def api_public_job_view(job_id: int):
+    job = get_job(job_id)
+    if not job:
+        return {"error": "Job not found"}
+    return {"id": job["id"], "title": job["title"], "description": job["description"], "requirements": job["requirements"]}
+
+
+@app.post("/public/jobs/{job_id}/apply")
+async def api_public_apply(job_id: int, name: str = Form(...), file: UploadFile = File(...)):
+    job = get_job(job_id)
+    if not job:
+        return {"error": "Job not found"}
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        contents = await file.read()
+        tmp.write(contents)
+        tmp_path = tmp.name
+    try:
+        cv_text = extract_text_from_pdf(tmp_path)
+    finally:
+        os.remove(tmp_path)
+
+    candidate_id = create_candidate(name, cv_text, job["created_by"], applied_job_id=job_id)
+    return {"candidate_id": candidate_id, "job_id": job_id, "message": "Application received."}
+    
+@app.get("/jobs/{job_id}/pending-candidates")
+def api_pending_candidates(job_id: int, user: str = Depends(get_current_user)):
+    if not _get_owned_job_or_error(job_id, user):
+        return {"error": "Job not found"}
+
+    all_candidates = list_candidates(created_by=user)
+    already_screened_ids = {s["candidate_id"] for s in list_screenings_for_job(job_id)}
+    return [
+        c for c in all_candidates
+        if c.get("applied_job_id") == job_id and c["id"] not in already_screened_ids
+    ]

@@ -1,12 +1,12 @@
 from app.db.database import get_connection
 
 
-def create_candidate(name: str, cv_text: str, created_by: str) -> int:
+def create_candidate(name: str, cv_text: str, created_by: str, applied_job_id: int = None) -> int:
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO candidates (name, cv_text, created_by) VALUES (?, ?, ?)",
-        (name, cv_text, created_by),
+        "INSERT INTO candidates (name, cv_text, created_by, applied_job_id) VALUES (?, ?, ?, ?)",
+        (name, cv_text, created_by, applied_job_id),
     )
     conn.commit()
     new_id = cursor.lastrowid

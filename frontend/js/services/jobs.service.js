@@ -15,3 +15,6 @@ export function updateJob(jobId, fields) {
 export function deleteJob(jobId) {
   return apiFetch(`/jobs/${jobId}`, { method: "DELETE" });
 }
+export function getPendingCandidates(jobId) {
+  return apiFetch(`/jobs/${jobId}/pending-candidates`);
+}

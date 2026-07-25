@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Apply</title>
+    <link rel="stylesheet" href="/static/css/base.css" />
+    <link rel="stylesheet" href="/static/css/layout.css" />
+    <link rel="stylesheet" href="/static/css/components.css" />
+  </head>
+  <body>
+    <div id="login-screen" style="display: flex">
+      <div id="login-box" style="width: 420px">
+        <h2 id="apply-job-title">Loading job...</h2>
+        <p class="muted small" id="apply-job-desc"></p>
+        <form id="apply-form" style="margin-top: 16px">
+          <input id="apply-name" placeholder="Your full name" required />
+          <input id="apply-file" type="file" accept=".pdf" required />
+          <button type="submit" class="primary full">Submit Application</button>
+        </form>
+        <div id="apply-status" class="error-text"></div>
+      </div>
+    </div>
+    <script type="module" src="/static/js/apply.js"></script>
+  </body>
+</html>

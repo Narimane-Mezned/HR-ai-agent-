@@ -4,6 +4,7 @@ import {
   getJob,
   updateJob,
   deleteJob,
+  getPendingCandidates,
 } from "../services/jobs.service.js";
 import {
   uploadCandidate,
@@ -52,6 +53,10 @@ export async function renderScreeningPage() {
             <input id="candidate-file" type="file" accept=".pdf" required>
             <button type="submit" class="primary">Upload &amp; Screen</button>
           </form>
+        </div>
+        <div class="section" id="pending-section">
+          <h4>Pending applicants</h4>
+          <div id="pending-list"></div>
         </div>
         <div class="section">
           <h4>Ranked candidates</h4>
@@ -197,7 +202,6 @@ async function selectJob(jobId) {
 
   document.getElementById("job-detail").style.display = "block";
   document.getElementById("job-title").innerText = activeJob.title;
-  document.getElementById("job-desc").innerText = activeJob.description;
 
   document.getElementById("edit-job-btn").onclick = () => {
     document.getElementById("job-modal-title").innerText = "Edit job";
@@ -219,6 +223,14 @@ async function selectJob(jobId) {
   };
 
   await loadScreenings(jobId);
+  await loadPendingCandidates(jobId);
+  document.getElementById("job-desc").innerHTML = `
+  ${activeJob.description}
+  <div style="margin-top:8px;">
+    <small class="muted">Public application link: </small>
+    <input readonly value="${window.location.origin}/static/apply.html?job_id=${activeJob.id}" style="width:auto; display:inline-block; font-size:12px;" onclick="this.select()">
+  </div>
+`;
 }
 
 async function loadScreenings(jobId) {
@@ -272,6 +284,29 @@ async function loadScreenings(jobId) {
         showToast("Candidate deleted", "success");
         await loadScreenings(activeJob.id);
       });
+    container.appendChild(row);
+  });
+}
+
+async function loadPendingCandidates(jobId) {
+  const pending = await getPendingCandidates(jobId);
+  const container = document.getElementById("pending-list");
+  container.innerHTML = "";
+  if (!pending.length) {
+    container.innerHTML = `<p class="muted small">No pending applicants.</p>`;
+    return;
+  }
+  pending.forEach((c) => {
+    const row = document.createElement("div");
+    row.className = "candidate-row";
+    row.innerHTML = `<div><strong>${c.name}</strong></div><button class="primary small">Screen</button>`;
+    row.querySelector("button").addEventListener("click", async () => {
+      showToast("Screening candidate...", "info");
+      await screenCandidates(jobId, [c.id]);
+      await loadPendingCandidates(jobId);
+      await loadScreenings(jobId);
+      showToast("Screening complete", "success");
+    });
     container.appendChild(row);
   });
 }
