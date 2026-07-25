@@ -1,0 +1,84 @@
+#login-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+}
+
+#login-box {
+  background: var(--color-surface);
+  padding: var(--spacing-4);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  width: 320px;
+}
+#login-box h2 {
+  margin-bottom: var(--spacing-3);
+}
+.login-alt {
+  margin-top: var(--spacing-2);
+  font-size: 13px;
+}
+
+#app-screen {
+  display: none;
+  height: 100vh;
+}
+.container {
+  display: flex;
+  height: 100vh;
+}
+
+#sidebar {
+  width: 220px;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  padding: var(--spacing-3);
+  display: flex;
+  flex-direction: column;
+}
+.brand {
+  font-size: 15px;
+  margin-bottom: var(--spacing-4);
+}
+#tabs {
+  flex: 1;
+}
+.sidebar-footer {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--spacing-3);
+}
+.sidebar-username {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-2);
+}
+
+#main-panel {
+  flex: 1;
+  padding: var(--spacing-4);
+  overflow-y: auto;
+}
+.view {
+  max-width: 960px;
+}
+
+.split {
+  display: flex;
+  gap: var(--spacing-4);
+  align-items: flex-start;
+}
+.job-col {
+  width: 240px;
+  flex-shrink: 0;
+}
+.col-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-2);
+}
+.detail-col {
+  flex: 1;
+  min-width: 0;
+}
