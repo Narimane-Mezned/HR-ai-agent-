@@ -1,12 +1,17 @@
 from app.db.database import get_connection
 
-
-def create_candidate(name: str, cv_text: str, created_by: str, applied_job_id: int = None) -> int:
+def create_candidate(
+    name: str, cv_text: str, created_by: str,
+    applied_job_id: int = None, prescreening_answers: str = None,
+    email: str = None, phone: str = None, linkedin_url: str = None, github_url: str = None,
+) -> int:
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO candidates (name, cv_text, created_by, applied_job_id) VALUES (?, ?, ?, ?)",
-        (name, cv_text, created_by, applied_job_id),
+        """INSERT INTO candidates
+           (name, cv_text, created_by, applied_job_id, prescreening_answers, email, phone, linkedin_url, github_url)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (name, cv_text, created_by, applied_job_id, prescreening_answers, email, phone, linkedin_url, github_url),
     )
     conn.commit()
     new_id = cursor.lastrowid
@@ -50,3 +55,24 @@ def delete_candidate(candidate_id: int) -> bool:
     deleted = cursor.rowcount > 0
     conn.close()
     return deleted
+
+def mark_candidate_hired(candidate_id: int, job_id: int, checklist_json: str) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE candidates SET status = 'hired', hired_for_job_id = ?, onboarding_checklist = ? WHERE id = ?",
+        (job_id, checklist_json, candidate_id),
+    )
+    conn.commit()
+    updated = cursor.rowcount > 0
+    conn.close()
+    return updated
+
+
+def list_hired_candidates(created_by: str) -> list[dict]:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM candidates WHERE created_by = ? AND status = 'hired'", (created_by,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]

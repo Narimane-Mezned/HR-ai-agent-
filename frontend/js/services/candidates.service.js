@@ -21,3 +21,16 @@ export function updateCandidate(candidateId, name, file) {
 export function deleteCandidate(candidateId) {
   return apiFetch(`/candidates/${candidateId}`, { method: "DELETE" });
 }
+export function getCandidateDetail(candidateId) {
+  return apiFetch(`/candidates/${candidateId}/detail`);
+}
+export async function openResume(candidateId) {
+  const token = localStorage.getItem("token");
+  const res = await fetch(`/candidates/${candidateId}/resume`, {
+    headers: { Authorization: "Bearer " + token },
+  });
+  if (!res.ok) throw new Error("Resume not available");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank");
+}

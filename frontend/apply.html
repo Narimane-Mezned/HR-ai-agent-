@@ -15,6 +15,12 @@
         <form id="apply-form" style="margin-top: 16px">
           <input id="apply-name" placeholder="Your full name" required />
           <input id="apply-file" type="file" accept=".pdf" required />
+          <input id="apply-phone" placeholder="Phone (optional)" />
+          <input
+            id="apply-github"
+            placeholder="GitHub profile URL (optional)"
+          />
+          <div id="apply-questions"></div>
           <button type="submit" class="primary full">Submit Application</button>
         </form>
         <div id="apply-status" class="error-text"></div>

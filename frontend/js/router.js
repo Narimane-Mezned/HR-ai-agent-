@@ -12,12 +12,14 @@ import {
   initScheduleModal,
 } from "./pages/scheduling.page.js";
 import { renderSidebar } from "./components/sidebar.js";
+import { renderOnboardingPage } from "./pages/onboarding.page.js";
 
 const ROUTES = {
   dashboard: renderDashboardPage,
   screening: renderScreeningPage,
   matching: renderMatchingPage,
   scheduling: renderSchedulingPage,
+  onboarding: renderOnboardingPage,
 };
 
 let modalInitialized = false;

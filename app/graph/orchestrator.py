@@ -1,29 +1,29 @@
 from typing import TypedDict, Optional
+import json as json_lib
 from langgraph.graph import StateGraph, END
 
 from app.agents.screening_agent import screen_candidate
 from app.db.screenings import save_screening
 from app.db.candidates import list_candidates
 
+
 class ScreeningState(TypedDict):
     cv_text: str
     job_description: str
     result: Optional[dict]
-    category: Optional[str]  
+    category: Optional[str]
 
 
 def screen_node(state: ScreeningState) -> ScreeningState:
-    
     result = screen_candidate(state["cv_text"], state["job_description"])
     return {**state, "result": result}
 
 
 def categorize(state: ScreeningState) -> str:
-    
     result = state["result"]
 
     if result.get("verdict") == "Error":
-        return "needs_review"  
+        return "needs_review"
 
     score = result.get("score")
     if score is None:
@@ -79,7 +79,6 @@ app = graph.compile()
 
 
 def run_screening(cv_text: str, job_description: str) -> dict:
-   
     final_state = app.invoke({
         "cv_text": cv_text,
         "job_description": job_description,
@@ -89,22 +88,36 @@ def run_screening(cv_text: str, job_description: str) -> dict:
     return final_state
 
 
-
-
 def run_and_save_screening(candidate_id: int, job_id: int, cv_text: str, job_description: str) -> dict:
-   
     final_state = run_screening(cv_text, job_description)
 
     result = final_state["result"]
-    result["category"] = final_state["category"] 
+    result["category"] = final_state["category"]
 
     save_screening(candidate_id, job_id, result)
 
     return result
 
 
+def _build_cv_text_for_screening(candidate: dict) -> str:
+    """
+    Merges pre-screening answers into the CV text used for the actual LLM
+    screening call, WITHOUT modifying what's stored in the database.
+    Storage stays clean (candidate["cv_text"]); only the copy sent to the
+    LLM gets enriched.
+    """
+    cv_text = candidate["cv_text"]
+    if candidate.get("prescreening_answers"):
+        try:
+            answers = json_lib.loads(candidate["prescreening_answers"])
+            qa_block = "\n\nPRE-SCREENING ANSWERS:\n" + "\n".join(f"Q: {q}\nA: {a}" for q, a in answers.items())
+            cv_text += qa_block
+        except (json_lib.JSONDecodeError, TypeError):
+            pass
+    return cv_text
+
+
 def screen_candidates_for_job(candidate_ids: list[int], job_id: int) -> list[dict]:
-    
     from app.db.jobs import get_job
     from app.db.candidates import get_candidate
 
@@ -121,12 +134,12 @@ def screen_candidates_for_job(candidate_ids: list[int], job_id: int) -> list[dic
             print(f"WARNING: no candidate found with id {candidate_id}, skipping")
             continue
 
-        result = run_and_save_screening(candidate_id, job_id, candidate["cv_text"], job_description)
+        cv_text_for_screening = _build_cv_text_for_screening(candidate)
+        result = run_and_save_screening(candidate_id, job_id, cv_text_for_screening, job_description)
         result["candidate_id"] = candidate_id
         result["candidate_name"] = candidate["name"]
         results.append(result)
 
-    
     results.sort(key=lambda r: (r["score"] is None, -(r["score"] or 0)))
 
-    return results
+    return results  

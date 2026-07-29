@@ -23,6 +23,13 @@ from app.db.interviews import create_interview, list_interviews_for_hr
 from app.db.users import create_user, verify_user, get_user_profile
 from app.auth import create_access_token, get_current_user
 from app.rag.job_store import index_jobs, find_matching_jobs
+from app.agents.prescreening_agent import generate_prescreening_questions
+from app.pdf_utils import extract_contact_info
+from app.agents.onboarding_agent import generate_onboarding_checklist
+from app.db.candidates import mark_candidate_hired, list_hired_candidates
+
+RESUMES_DIR = "data/resumes"
+os.makedirs(RESUMES_DIR, exist_ok=True)
 
 app = FastAPI(title="HR AI Agent API")
 
@@ -106,11 +113,11 @@ def api_delete_job(job_id: int, user: str = Depends(get_current_user)):
 
 
 # --- Candidates ---
-
 @app.post("/candidates")
 async def api_create_candidate(name: str = Form(...), file: UploadFile = File(...), user: str = Depends(get_current_user)):
+    contents = await file.read()
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        contents = await file.read()
         tmp.write(contents)
         tmp_path = tmp.name
     try:
@@ -118,14 +125,17 @@ async def api_create_candidate(name: str = Form(...), file: UploadFile = File(..
     finally:
         os.remove(tmp_path)
 
-    candidate_id = create_candidate(name, cv_text, user)
-    return {"id": candidate_id, "name": name, "cv_length": len(cv_text)}
+    contact = extract_contact_info(cv_text)
+    candidate_id = create_candidate(name, cv_text, user, **contact)
 
+    with open(f"{RESUMES_DIR}/{candidate_id}.pdf", "wb") as f:
+        f.write(contents)
+
+    return {"id": candidate_id, "name": name, "cv_length": len(cv_text)}
 
 @app.get("/candidates")
 def api_list_candidates(user: str = Depends(get_current_user)):
     return list_candidates(created_by=user)
-
 
 @app.put("/candidates/{candidate_id}")
 async def api_update_candidate(candidate_id: int, name: str = Form(...), file: UploadFile = File(...), user: str = Depends(get_current_user)):
@@ -133,8 +143,8 @@ async def api_update_candidate(candidate_id: int, name: str = Form(...), file: U
     if not candidate or candidate.get("created_by") != user:
         return {"error": "Candidate not found"}
 
+    contents = await file.read()
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        contents = await file.read()
         tmp.write(contents)
         tmp_path = tmp.name
     try:
@@ -143,8 +153,9 @@ async def api_update_candidate(candidate_id: int, name: str = Form(...), file: U
         os.remove(tmp_path)
 
     update_candidate_cv(candidate_id, name, cv_text)
+    with open(f"{RESUMES_DIR}/{candidate_id}.pdf", "wb") as f:
+        f.write(contents)
 
-    # CV changed -> rescore this candidate against every job they were previously screened for
     prior_screenings = list_screenings_for_candidate(candidate_id)
     for s in prior_screenings:
         job = get_job(s["job_id"])
@@ -152,7 +163,6 @@ async def api_update_candidate(candidate_id: int, name: str = Form(...), file: U
             run_and_save_screening(candidate_id, s["job_id"], cv_text, job["description"])
 
     return {"id": candidate_id, "name": name, "cv_length": len(cv_text), "rescored_jobs": len(prior_screenings)}
-
 
 @app.delete("/candidates/{candidate_id}")
 def api_delete_candidate(candidate_id: int, user: str = Depends(get_current_user)):
@@ -297,23 +307,6 @@ def api_public_job_view(job_id: int):
     return {"id": job["id"], "title": job["title"], "description": job["description"], "requirements": job["requirements"]}
 
 
-@app.post("/public/jobs/{job_id}/apply")
-async def api_public_apply(job_id: int, name: str = Form(...), file: UploadFile = File(...)):
-    job = get_job(job_id)
-    if not job:
-        return {"error": "Job not found"}
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        contents = await file.read()
-        tmp.write(contents)
-        tmp_path = tmp.name
-    try:
-        cv_text = extract_text_from_pdf(tmp_path)
-    finally:
-        os.remove(tmp_path)
-
-    candidate_id = create_candidate(name, cv_text, job["created_by"], applied_job_id=job_id)
-    return {"candidate_id": candidate_id, "job_id": job_id, "message": "Application received."}
     
 @app.get("/jobs/{job_id}/pending-candidates")
 def api_pending_candidates(job_id: int, user: str = Depends(get_current_user)):
@@ -326,3 +319,130 @@ def api_pending_candidates(job_id: int, user: str = Depends(get_current_user)):
         c for c in all_candidates
         if c.get("applied_job_id") == job_id and c["id"] not in already_screened_ids
     ]
+
+# --- pre-screening ---
+
+@app.get("/public/jobs/{job_id}/prescreening-questions")
+def api_prescreening_questions(job_id: int):
+    job = get_job(job_id)
+    if not job:
+        return {"error": "Job not found"}
+    questions = generate_prescreening_questions(job["description"])
+    return {"questions": questions}
+
+@app.post("/public/jobs/{job_id}/apply")
+async def api_public_apply(
+    job_id: int,
+    name: str = Form(...),
+    file: UploadFile = File(...),
+    prescreening_answers: str = Form(""),
+    phone: str = Form(""),
+    github_url: str = Form(""),
+):
+    job = get_job(job_id)
+    if not job:
+        return {"error": "Job not found"}
+
+    contents = await file.read()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp.write(contents)
+        tmp_path = tmp.name
+    try:
+        cv_text = extract_text_from_pdf(tmp_path)
+    finally:
+        os.remove(tmp_path)
+
+    contact = extract_contact_info(cv_text)
+    if phone:
+        contact["phone"] = phone  
+    if github_url:
+        contact["github_url"] = github_url
+
+    candidate_id = create_candidate(
+        name, cv_text, job["created_by"],
+        applied_job_id=job_id, prescreening_answers=prescreening_answers or None,
+        **contact,
+    )
+
+    with open(f"{RESUMES_DIR}/{candidate_id}.pdf", "wb") as f:
+        f.write(contents)
+
+    return {"candidate_id": candidate_id, "job_id": job_id, "message": "Application received."}
+
+# --- candidate details ---
+@app.get("/candidates/{candidate_id}/detail")
+def api_candidate_detail(candidate_id: int, user: str = Depends(get_current_user)):
+    candidate = get_candidate(candidate_id)
+    if not candidate or candidate.get("created_by") != user:
+        return {"error": "Candidate not found"}
+
+    answers = {}
+    if candidate.get("prescreening_answers"):
+        try:
+            answers = json_lib.loads(candidate["prescreening_answers"])
+        except (json_lib.JSONDecodeError, TypeError):
+            pass
+
+    return {
+        "id": candidate["id"],
+        "name": candidate["name"],
+        "cv_text": candidate["cv_text"],
+        "email": candidate.get("email"),
+        "phone": candidate.get("phone"),
+        "linkedin_url": candidate.get("linkedin_url"),
+        "github_url": candidate.get("github_url"),
+        "prescreening_answers": answers,
+        "has_resume": os.path.exists(f"{RESUMES_DIR}/{candidate_id}.pdf"),
+    }
+
+
+@app.get("/candidates/{candidate_id}/resume")
+def api_candidate_resume(candidate_id: int, user: str = Depends(get_current_user)):
+    candidate = get_candidate(candidate_id)
+    if not candidate or candidate.get("created_by") != user:
+        return {"error": "Candidate not found"}
+
+    path = f"{RESUMES_DIR}/{candidate_id}.pdf"
+    if not os.path.exists(path):
+        return {"error": "Resume file not found"}
+
+    return FileResponse(path, media_type="application/pdf", filename=f"{candidate['name']}_CV.pdf")
+
+# --- onboarding ---
+
+@app.post("/candidates/{candidate_id}/hire")
+def api_mark_hired(candidate_id: int, job_id: int = Form(...), user: str = Depends(get_current_user)):
+    candidate = get_candidate(candidate_id)
+    if not candidate or candidate.get("created_by") != user:
+        return {"error": "Candidate not found"}
+
+    job = get_job(job_id)
+    if not job or job["created_by"] != user:
+        return {"error": "Job not found"}
+
+    screenings = list_screenings_for_job(job_id)
+    this_screening = next((s for s in screenings if s["candidate_id"] == candidate_id), None)
+    skills = json_lib.loads(this_screening["skills"]) if this_screening and this_screening.get("skills") else []
+    justification = this_screening["justification"] if this_screening else ""
+
+    checklist = generate_onboarding_checklist(job["title"], job["description"], skills, justification)
+    mark_candidate_hired(candidate_id, job_id, json_lib.dumps(checklist))
+
+    return {"candidate_id": candidate_id, "checklist": checklist}
+
+
+@app.get("/onboarding")
+def api_list_onboarding(user: str = Depends(get_current_user)):
+    hired = list_hired_candidates(user)
+    result = []
+    for c in hired:
+        job = get_job(c["hired_for_job_id"]) if c.get("hired_for_job_id") else None
+        checklist = json_lib.loads(c["onboarding_checklist"]) if c.get("onboarding_checklist") else {}
+        result.append({
+            "candidate_id": c["id"],
+            "candidate_name": c["name"],
+            "job_title": job["title"] if job else "Unknown",
+            "welcome_message": checklist.get("welcome_message", ""),
+            "checklist": checklist.get("checklist", []),
+        })
+    return result

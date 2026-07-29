@@ -3,6 +3,7 @@ const TABS = [
   { key: "screening", label: "Screening" },
   { key: "matching", label: "Matching" },
   { key: "scheduling", label: "Scheduling" },
+  { key: "onboarding", label: "Onboarding" },
 ];
 
 export function renderSidebar(activeKey, onNavigate, onLogout, username) {
