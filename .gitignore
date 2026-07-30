@@ -8,3 +8,6 @@ __pycache__/
 
 data/sample_cvs/*.pdf
 data/resumes/
+
+credentials.json
+token.json
