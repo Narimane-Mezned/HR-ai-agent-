@@ -5,10 +5,13 @@ import json
 SYSTEM_PROMPT = """You are a scheduling assistant. Given a candidate's name, a
 job title, and today's actual date, propose 3 realistic interview time slots
 for the upcoming week (weekdays, business hours, spaced at least a day apart,
-all AFTER today's date) and write a short, professional message HR could send
-to the candidate.
+all AFTER today's date).
 
-Return ONLY a JSON object with this exact shape, no text before or after it:
+Return each slot as a valid ISO 8601 datetime string (e.g. "2026-07-28T10:00:00"),
+not a human-readable description.
+
+Return ONLY a JSON object with this exact shape, no text before or after it,
+no markdown fences, no reasoning outside the JSON:
 {
   "proposed_slots": [string, string, string],
   "message": string

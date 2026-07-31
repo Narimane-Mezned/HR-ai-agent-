@@ -63,14 +63,19 @@ export async function openScheduleModal(
     slots.forEach((slot) => {
       const div = document.createElement("div");
       div.className = "slot-option";
-      div.innerText = slot;
+      const readable = new Date(slot).toLocaleString(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+      div.innerText = readable;
       div.onclick = () => {
         document
           .querySelectorAll(".slot-option")
           .forEach((s) => s.classList.remove("selected"));
         div.classList.add("selected");
-        document.getElementById("sched-custom").value = slot;
+        document.getElementById("sched-custom").value = slot.slice(0, 16);
       };
+
       slotsEl.appendChild(div);
     });
   } catch (err) {
@@ -85,21 +90,27 @@ export function initScheduleModal() {
   document
     .getElementById("sched-confirm")
     .addEventListener("click", async () => {
-      const confirmedTime = document
-        .getElementById("sched-custom")
-        .value.trim();
+      let confirmedTime = document.getElementById("sched-custom").value.trim();
       if (!confirmedTime) {
         showToast("Pick or type a time first", "error");
         return;
       }
+      if (confirmedTime.length === 16) confirmedTime += ":00";
       try {
-        await confirmInterview({
+        const result = await confirmInterview({
           candidateId: scheduleCtx.candidateId,
           jobId: scheduleCtx.jobId,
           confirmedTime,
         });
         closeModal(modal);
-        showToast("Interview scheduled for " + confirmedTime, "success");
+        if (result.calendar_link) {
+          showToast("Interview scheduled and added to calendar", "success");
+        } else {
+          showToast(
+            "Interview saved (calendar event failed — check manually)",
+            "info",
+          );
+        }
       } catch (err) {
         showToast(err.message, "error");
       }

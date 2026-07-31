@@ -27,6 +27,7 @@ from app.agents.prescreening_agent import generate_prescreening_questions
 from app.pdf_utils import extract_contact_info
 from app.agents.onboarding_agent import generate_onboarding_checklist
 from app.db.candidates import mark_candidate_hired, list_hired_candidates
+from app.calendar_service import create_calendar_event
 
 RESUMES_DIR = "data/resumes"
 os.makedirs(RESUMES_DIR, exist_ok=True)
@@ -219,16 +220,42 @@ def api_get_screenings(job_id: int, user: str = Depends(get_current_user)):
 def api_propose_times(candidate_name: str = Form(...), job_title: str = Form(...), user: str = Depends(get_current_user)):
     return propose_interview_slots(candidate_name, job_title)
 
-
 @app.post("/interviews")
-def api_create_interview(candidate_id: int = Form(...), job_id: int = Form(...), confirmed_time: str = Form(...), user: str = Depends(get_current_user)):
+def api_create_interview(
+    candidate_id: int = Form(...),
+    job_id: int = Form(...),
+    confirmed_time: str = Form(...),  # ISO format , e.g. "2026-07-28T10:00:00"
+    user: str = Depends(get_current_user),
+):
     if not _get_owned_job_or_error(job_id, user):
         return {"error": "Job not found"}
+
     interview_id = create_interview(candidate_id, job_id, confirmed_time, user)
+
     candidate = get_candidate(candidate_id)
     job = get_job(job_id)
+
+    calendar_result = None
+    try:
+        calendar_result = create_calendar_event(
+            candidate_name=candidate["name"],
+            candidate_email=candidate.get("email") or "",
+            job_title=job["title"],
+            start_iso=confirmed_time,
+        )
+    except Exception as e:
+        # Calendar failure shouldn't break the whole booking — the interview
+        # is still saved internally; HR can add it to the calendar manually.
+        print(f"WARNING: calendar event creation failed: {e}")
+
     message = build_confirmation_message(candidate["name"], job["title"], confirmed_time)
-    return {"id": interview_id, "confirmed_time": confirmed_time, "confirmation_message": message}
+
+    return {
+        "id": interview_id,
+        "confirmed_time": confirmed_time,
+        "confirmation_message": message,
+        "calendar_link": calendar_result["html_link"] if calendar_result else None,
+    }
 
 
 @app.get("/interviews")

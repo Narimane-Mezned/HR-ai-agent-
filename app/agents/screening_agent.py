@@ -113,4 +113,16 @@ fences, no reasoning, no text before or after it. Start with {{ and end with }}.
         result["skills"] = _filter_hallucinated_skills(result["skills"], clean_cv_text)
 
     save_cached_result(cache_key, result, model)
+    if "score" in result:
+        result["verdict"] = _normalize_verdict(result["score"])
     return result
+
+def _normalize_verdict(score) -> str:
+    if score is None:
+        return "Error"
+    elif score >= 70:
+        return "Suitable"
+    elif score >= 40:
+        return "Borderline"
+    else:
+        return "Not suitable"
