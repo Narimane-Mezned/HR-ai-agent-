@@ -1,8 +1,12 @@
+import os
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
 from jose import jwt, JWTError
 from fastapi import HTTPException, Header
 
-SECRET_KEY = "hr-ai-agent-dev-secret-change-in-production"
+load_dotenv()
+
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "hr-ai-agent-dev-secret-change-in-production")
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_HOURS = 8
 
