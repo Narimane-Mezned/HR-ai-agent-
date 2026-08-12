@@ -6,6 +6,9 @@ from app.config import OPENROUTER_MODEL_CHEAP
 from app.llm_client import call_llm
 from app.pdf_utils import redact_pii
 
+
+# this is the prompt engineering 
+# the fixed rulebook sent on every LLM call 
 SYSTEM_PROMPT = """You are an HR screening assistant. Given a candidate's CV text
 and a job description, evaluate how well the candidate fits the job.
 
@@ -56,13 +59,15 @@ def _extract_json(raw_text: str) -> dict:
 
     raise json.JSONDecodeError("No JSON object found in response", text, 0)
 
-
+# the guardrail
 def _filter_hallucinated_skills(skills: list, cv_text: str) -> list:
-    
+    # lowercase the CV, lowercase each claimed skill, keep only skills that literally appear as a substring.
+    # No AI judgment here at all
     cv_lower = cv_text.lower()
     return [skill for skill in skills if skill.lower() in cv_lower]
 
-
+# If even the retry fails to parse, don't crash 
+# return a structured object with verdict: "Error"
 def _error_result(raw_response) -> dict:
     preview = str(raw_response)[:200] if raw_response else "(empty response)"
     return {
@@ -74,9 +79,9 @@ def _error_result(raw_response) -> dict:
         "justification": f"LLM failed to return valid JSON after retry. Raw: {preview}",
     }
 
-
+# the orchestration inside the agent
 def screen_candidate(cv_text: str, job_description: str, model: str = OPENROUTER_MODEL_CHEAP) -> dict:
-    clean_cv_text = redact_pii(cv_text)
+    clean_cv_text = redact_pii(cv_text)  # "Redact PII" means strip out personally identifiable information before the text leaves your system
 
     cache_key = make_cache_key(clean_cv_text, job_description, model)
     cached = get_cached_result(cache_key)
@@ -112,11 +117,14 @@ fences, no reasoning, no text before or after it. Start with {{ and end with }}.
     if "skills" in result and isinstance(result["skills"], list):
         result["skills"] = _filter_hallucinated_skills(result["skills"], clean_cv_text)
 
-    save_cached_result(cache_key, result, model)
     if "score" in result:
         result["verdict"] = _normalize_verdict(result["score"])
+
+    save_cached_result(cache_key, result, model)
     return result
 
+# the other guardrail
+# normalizes the score into a verdict string using fixed thresholds 
 def _normalize_verdict(score) -> str:
     if score is None:
         return "Error"
