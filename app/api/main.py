@@ -3,7 +3,7 @@ import os
 import json as json_lib
 from collections import Counter
 
-from fastapi import FastAPI, UploadFile, File, Form, Depends
+from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
@@ -20,7 +20,7 @@ from app.pdf_utils import extract_text_from_pdf
 from app.graph.orchestrator import screen_candidates_for_job, run_and_save_screening
 from app.agents.scheduling_agent import propose_interview_slots, build_confirmation_message
 from app.db.interviews import create_interview, list_interviews_for_hr
-from app.db.users import create_user, verify_user, get_user_profile
+from app.db.users import UsernameAlreadyExistsError, create_user, verify_user, get_user_profile
 from app.auth import create_access_token, get_current_user
 from app.rag.job_store import index_jobs, find_matching_jobs
 from app.agents.prescreening_agent import generate_prescreening_questions
@@ -53,10 +53,12 @@ def root():
 @app.post("/register")
 def api_register(username: str = Form(...), password: str = Form(...), company_name: str = Form(...), email: str = Form("")):
     normalized = username.strip().lower()
-    create_user(username, password, company_name, email)
+    try:
+        create_user(username, password, company_name, email)
+    except UsernameAlreadyExistsError:
+        raise HTTPException(status_code=409, detail="This username is already taken.")
     token = create_access_token(normalized)  # auto-login: no separate login step needed
     return {"access_token": token, "token_type": "bearer", "username": normalized}
-
 
 @app.post("/login")
 def api_login(username: str = Form(...), password: str = Form(...)):

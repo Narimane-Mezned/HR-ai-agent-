@@ -1,5 +1,10 @@
 import bcrypt
+import sqlite3
 from app.db.database import get_connection
+
+
+class UsernameAlreadyExistsError(Exception):
+    pass
 
 
 def init_users_table() -> None:
@@ -25,15 +30,18 @@ def create_user(username: str, password: str, company_name: str, email: str = ""
 
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO users (username, password_hash, company_name, email) VALUES (?, ?, ?, ?)",
-        (normalized, password_hash, company_name.strip(), email.strip()),
-    )
-    conn.commit()
-    new_id = cursor.lastrowid
-    conn.close()
-    return new_id
-
+    try:
+        cursor.execute(
+            "INSERT INTO users (username, password_hash, company_name, email) VALUES (?, ?, ?, ?)",
+            (normalized, password_hash, company_name.strip(), email.strip()),
+        )
+        conn.commit()
+        new_id = cursor.lastrowid
+        return new_id
+    except sqlite3.IntegrityError:
+        raise UsernameAlreadyExistsError(f"Username '{normalized}' is already taken.")
+    finally:
+        conn.close()
 
 def verify_user(username: str, password: str) -> bool:
     normalized = username.strip().lower()
