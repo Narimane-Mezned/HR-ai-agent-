@@ -29,11 +29,19 @@ from app.agents.onboarding_agent import generate_onboarding_checklist
 from app.db.candidates import mark_candidate_hired, list_hired_candidates
 from app.calendar_service import create_calendar_event
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from fastapi import Request
+from app.pdf_utils import validate_pdf_upload
+
 RESUMES_DIR = "data/resumes"
 os.makedirs(RESUMES_DIR, exist_ok=True)
 
 app = FastAPI(title="HR AI Agent API")
-
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 @app.get("/")
 def root():
@@ -244,8 +252,6 @@ def api_create_interview(
             start_iso=confirmed_time,
         )
     except Exception as e:
-        # Calendar failure shouldn't break the whole booking — the interview
-        # is still saved internally; HR can add it to the calendar manually.
         print(f"WARNING: calendar event creation failed: {e}")
 
     message = build_confirmation_message(candidate["name"], job["title"], confirmed_time)
@@ -327,14 +333,13 @@ def serve_frontend():
 
 # --- job posting  ---
 @app.get("/public/jobs/{job_id}")
-def api_public_job_view(job_id: int):
+@limiter.limit("20/minute")
+def api_public_job_view(request: Request, job_id: int):
     job = get_job(job_id)
     if not job:
         return {"error": "Job not found"}
     return {"id": job["id"], "title": job["title"], "description": job["description"], "requirements": job["requirements"]}
 
-
-    
 @app.get("/jobs/{job_id}/pending-candidates")
 def api_pending_candidates(job_id: int, user: str = Depends(get_current_user)):
     if not _get_owned_job_or_error(job_id, user):
@@ -346,11 +351,11 @@ def api_pending_candidates(job_id: int, user: str = Depends(get_current_user)):
         c for c in all_candidates
         if c.get("applied_job_id") == job_id and c["id"] not in already_screened_ids
     ]
-
 # --- pre-screening ---
 
 @app.get("/public/jobs/{job_id}/prescreening-questions")
-def api_prescreening_questions(job_id: int):
+@limiter.limit("10/minute")
+def api_prescreening_questions(request: Request, job_id: int):
     job = get_job(job_id)
     if not job:
         return {"error": "Job not found"}
@@ -358,7 +363,9 @@ def api_prescreening_questions(job_id: int):
     return {"questions": questions}
 
 @app.post("/public/jobs/{job_id}/apply")
+@limiter.limit("5/minute")
 async def api_public_apply(
+    request: Request,
     job_id: int,
     name: str = Form(...),
     file: UploadFile = File(...),
@@ -371,6 +378,11 @@ async def api_public_apply(
         return {"error": "Job not found"}
 
     contents = await file.read()
+
+    validation_error = validate_pdf_upload(contents)
+    if validation_error:
+        return {"error": validation_error}
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         tmp.write(contents)
         tmp_path = tmp.name

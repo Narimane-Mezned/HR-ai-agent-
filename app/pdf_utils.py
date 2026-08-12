@@ -37,3 +37,13 @@ def extract_contact_info(cv_text: str) -> dict:
         "linkedin_url": linkedin.group(0) if linkedin else None,
         "github_url": github.group(0) if github else None,
     }
+
+MAX_CV_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
+def validate_pdf_upload(contents: bytes) -> str | None:
+    if len(contents) == 0:
+        return "Empty file."
+    if len(contents) > MAX_CV_SIZE_BYTES:
+        return "File too large. Maximum size is 5 MB."
+    if not contents.startswith(b"%PDF"):
+        return "Invalid file type. Only PDF files are accepted."
+    return None
