@@ -63,7 +63,7 @@ def api_register(username: str = Form(...), password: str = Form(...), company_n
 @app.post("/login")
 def api_login(username: str = Form(...), password: str = Form(...)):
     if not verify_user(username, password):
-        return {"error": "Invalid username or password"}
+        raise HTTPException(status_code=401, detail="Invalid username or password")
     normalized = username.strip().lower()
     token = create_access_token(normalized)  # token always uses normalized identity
     return {"access_token": token, "token_type": "bearer"}
@@ -71,11 +71,22 @@ def api_login(username: str = Form(...), password: str = Form(...)):
 
 # --- Jobs ---
 
-def _get_owned_job_or_error(job_id: int, user: str):
+def _get_owned_job_or_404(job_id: int, user: str):
     job = get_job(job_id)
-    if not job or job["created_by"] != user:
-        return None
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job["created_by"] != user:
+        raise HTTPException(status_code=403, detail="You do not have access to this job")
     return job
+
+
+def _get_owned_candidate_or_404(candidate_id: int, user: str):
+    candidate = get_candidate(candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    if candidate.get("created_by") != user:
+        raise HTTPException(status_code=403, detail="You do not have access to this candidate")
+    return candidate
 
 
 def _rescore_job_candidates(job_id: int):
@@ -92,8 +103,7 @@ def api_list_jobs(user: str = Depends(get_current_user)):
 
 @app.get("/jobs/{job_id}")
 def api_get_job(job_id: int, user: str = Depends(get_current_user)):
-    job = _get_owned_job_or_error(job_id, user)
-    return job if job else {"error": "Job not found"}
+    return _get_owned_job_or_404(job_id, user)
 
 
 @app.post("/jobs")
@@ -106,8 +116,7 @@ def api_create_job(title: str = Form(...), description: str = Form(...), require
 
 @app.put("/jobs/{job_id}")
 def api_update_job(job_id: int, title: str = Form(None), description: str = Form(None), requirements: str = Form(None), user: str = Depends(get_current_user)):
-    if not _get_owned_job_or_error(job_id, user):
-        return {"error": "Job not found"}
+    _get_owned_job_or_404(job_id, user)
     update_job(job_id, title=title, description=description, requirements=requirements)
     job = get_job(job_id)
     index_jobs([{"id": str(job_id), "title": job["title"], "description": job["description"]}])
@@ -118,8 +127,7 @@ def api_update_job(job_id: int, title: str = Form(None), description: str = Form
 
 @app.delete("/jobs/{job_id}")
 def api_delete_job(job_id: int, user: str = Depends(get_current_user)):
-    if not _get_owned_job_or_error(job_id, user):
-        return {"error": "Job not found"}
+    _get_owned_job_or_404(job_id, user)
     return {"deleted": delete_job(job_id)}
 
 
@@ -150,9 +158,7 @@ def api_list_candidates(user: str = Depends(get_current_user)):
 
 @app.put("/candidates/{candidate_id}")
 async def api_update_candidate(candidate_id: int, name: str = Form(...), file: UploadFile = File(...), user: str = Depends(get_current_user)):
-    candidate = get_candidate(candidate_id)
-    if not candidate or candidate.get("created_by") != user:
-        return {"error": "Candidate not found"}
+    _get_owned_candidate_or_404(candidate_id, user)
 
     contents = await file.read()
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
@@ -177,18 +183,14 @@ async def api_update_candidate(candidate_id: int, name: str = Form(...), file: U
 
 @app.delete("/candidates/{candidate_id}")
 def api_delete_candidate(candidate_id: int, user: str = Depends(get_current_user)):
-    candidate = get_candidate(candidate_id)
-    if not candidate or candidate.get("created_by") != user:
-        return {"error": "Candidate not found"}
+    _get_owned_candidate_or_404(candidate_id, user)
     delete_screenings_for_candidate(candidate_id)
     return {"deleted": delete_candidate(candidate_id)}
 
 
 @app.get("/candidates/{candidate_id}/matches")
 def api_candidate_matches(candidate_id: int, user: str = Depends(get_current_user)):
-    candidate = get_candidate(candidate_id)
-    if not candidate or candidate.get("created_by") != user:
-        return {"error": "Candidate not found"}
+    candidate = _get_owned_candidate_or_404(candidate_id, user)
 
     from app.agents.screening_agent import screen_candidate
     retrieved = find_matching_jobs(candidate["cv_text"], top_k=10)
@@ -211,16 +213,14 @@ def api_candidate_matches(candidate_id: int, user: str = Depends(get_current_use
 
 @app.post("/jobs/{job_id}/screen")
 def api_screen_candidates(job_id: int, candidate_ids: str = Form(...), user: str = Depends(get_current_user)):
-    if not _get_owned_job_or_error(job_id, user):
-        return {"error": "Job not found"}
+    _get_owned_job_or_404(job_id, user)
     ids = [int(x.strip()) for x in candidate_ids.split(",")]
     return screen_candidates_for_job(ids, job_id)
 
 
 @app.get("/jobs/{job_id}/screenings")
 def api_get_screenings(job_id: int, user: str = Depends(get_current_user)):
-    if not _get_owned_job_or_error(job_id, user):
-        return {"error": "Job not found"}
+    _get_owned_job_or_404(job_id, user)
     return list_screenings_for_job(job_id)
 
 
@@ -237,13 +237,11 @@ def api_create_interview(
     confirmed_time: str = Form(...),  # ISO format , e.g. "2026-07-28T10:00:00"
     user: str = Depends(get_current_user),
 ):
-    if not _get_owned_job_or_error(job_id, user):
-        return {"error": "Job not found"}
+    job = _get_owned_job_or_404(job_id, user)
 
     interview_id = create_interview(candidate_id, job_id, confirmed_time, user)
 
     candidate = get_candidate(candidate_id)
-    job = get_job(job_id)
 
     calendar_result = None
     try:
@@ -339,13 +337,12 @@ def serve_frontend():
 def api_public_job_view(request: Request, job_id: int):
     job = get_job(job_id)
     if not job:
-        return {"error": "Job not found"}
+        raise HTTPException(status_code=404, detail="Job not found")
     return {"id": job["id"], "title": job["title"], "description": job["description"], "requirements": job["requirements"]}
 
 @app.get("/jobs/{job_id}/pending-candidates")
 def api_pending_candidates(job_id: int, user: str = Depends(get_current_user)):
-    if not _get_owned_job_or_error(job_id, user):
-        return {"error": "Job not found"}
+    _get_owned_job_or_404(job_id, user)
 
     all_candidates = list_candidates(created_by=user)
     already_screened_ids = {s["candidate_id"] for s in list_screenings_for_job(job_id)}
@@ -360,7 +357,7 @@ def api_pending_candidates(job_id: int, user: str = Depends(get_current_user)):
 def api_prescreening_questions(request: Request, job_id: int):
     job = get_job(job_id)
     if not job:
-        return {"error": "Job not found"}
+        raise HTTPException(status_code=404, detail="Job not found")
     questions = generate_prescreening_questions(job["description"])
     return {"questions": questions}
 
@@ -377,13 +374,13 @@ async def api_public_apply(
 ):
     job = get_job(job_id)
     if not job:
-        return {"error": "Job not found"}
+        raise HTTPException(status_code=404, detail="Job not found")
 
     contents = await file.read()
 
     validation_error = validate_pdf_upload(contents)
     if validation_error:
-        return {"error": validation_error}
+        raise HTTPException(status_code=400, detail=validation_error)
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         tmp.write(contents)
@@ -413,9 +410,7 @@ async def api_public_apply(
 # --- candidate details ---
 @app.get("/candidates/{candidate_id}/detail")
 def api_candidate_detail(candidate_id: int, user: str = Depends(get_current_user)):
-    candidate = get_candidate(candidate_id)
-    if not candidate or candidate.get("created_by") != user:
-        return {"error": "Candidate not found"}
+    candidate = _get_owned_candidate_or_404(candidate_id, user)
 
     answers = {}
     if candidate.get("prescreening_answers"):
@@ -439,13 +434,11 @@ def api_candidate_detail(candidate_id: int, user: str = Depends(get_current_user
 
 @app.get("/candidates/{candidate_id}/resume")
 def api_candidate_resume(candidate_id: int, user: str = Depends(get_current_user)):
-    candidate = get_candidate(candidate_id)
-    if not candidate or candidate.get("created_by") != user:
-        return {"error": "Candidate not found"}
+    candidate = _get_owned_candidate_or_404(candidate_id, user)
 
     path = f"{RESUMES_DIR}/{candidate_id}.pdf"
     if not os.path.exists(path):
-        return {"error": "Resume file not found"}
+        raise HTTPException(status_code=404, detail="Resume file not found")
 
     return FileResponse(path, media_type="application/pdf", filename=f"{candidate['name']}_CV.pdf")
 
@@ -453,13 +446,8 @@ def api_candidate_resume(candidate_id: int, user: str = Depends(get_current_user
 
 @app.post("/candidates/{candidate_id}/hire")
 def api_mark_hired(candidate_id: int, job_id: int = Form(...), user: str = Depends(get_current_user)):
-    candidate = get_candidate(candidate_id)
-    if not candidate or candidate.get("created_by") != user:
-        return {"error": "Candidate not found"}
-
-    job = get_job(job_id)
-    if not job or job["created_by"] != user:
-        return {"error": "Job not found"}
+    candidate = _get_owned_candidate_or_404(candidate_id, user)
+    job = _get_owned_job_or_404(job_id, user)
 
     screenings = list_screenings_for_job(job_id)
     this_screening = next((s for s in screenings if s["candidate_id"] == candidate_id), None)
