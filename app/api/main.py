@@ -1,11 +1,13 @@
 import tempfile
 import os
 import json as json_lib
+import logging
 from collections import Counter
 
 from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+
 
 from app.db.jobs import create_job, get_job, list_jobs, update_job, delete_job
 from app.db.candidates import (
@@ -39,6 +41,12 @@ RESUMES_DIR = "data/resumes"
 os.makedirs(RESUMES_DIR, exist_ok=True)
 
 app = FastAPI(title="HR AI Agent API")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+logger = logging.getLogger(__name__)
+
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -252,7 +260,7 @@ def api_create_interview(
             start_iso=confirmed_time,
         )
     except Exception as e:
-        print(f"WARNING: calendar event creation failed: {e}")
+        logger.warning("Calendar event creation failed: %s", e)
 
     message = build_confirmation_message(candidate["name"], job["title"], confirmed_time)
 

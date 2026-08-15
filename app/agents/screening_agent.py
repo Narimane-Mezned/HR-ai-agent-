@@ -1,10 +1,12 @@
-
 import json
 import re
+import logging
 from app.db.cache import make_cache_key, get_cached_result, save_cached_result
 from app.config import OPENROUTER_MODEL_CHEAP
 from app.llm_client import call_llm
 from app.pdf_utils import redact_pii
+
+logger = logging.getLogger(__name__)
 
 
 # this is the prompt engineering 
@@ -86,13 +88,13 @@ def screen_candidate(cv_text: str, job_description: str, model: str = OPENROUTER
     cache_key = make_cache_key(clean_cv_text, job_description, model)
     cached = get_cached_result(cache_key)
     if cached:
-        print("DEBUG: cache HIT — skipping LLM call")
+        logger.debug("Cache hit for screening request — skipping LLM call")
         return cached
 
     user_prompt = f"JOB DESCRIPTION:\n{job_description}\n\nCANDIDATE CV:\n{clean_cv_text}"
 
     raw_response = call_llm(SYSTEM_PROMPT, user_prompt, model=model, max_tokens=2500)
-    print("DEBUG raw_response:", repr(raw_response))
+    logger.debug("LLM raw response received (%d chars)", len(raw_response) if raw_response else 0)
 
     try:
         result = _extract_json(raw_response)
@@ -107,7 +109,7 @@ Return ONLY the corrected, valid JSON object in the exact shape requested. No ma
 fences, no reasoning, no text before or after it. Start with {{ and end with }}."""
             retry_response = call_llm(SYSTEM_PROMPT, fix_prompt, max_tokens=1500)
 
-        print("DEBUG retry_response:", repr(retry_response))
+        logger.debug("LLM retry response received (%d chars)", len(retry_response) if retry_response else 0)
 
         try:
             result = _extract_json(retry_response)

@@ -1,6 +1,9 @@
 import sqlite3
 import os
+import logging
 from contextlib import contextmanager
+
+logger = logging.getLogger(__name__)
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "hr_agent.db")
 DB_PATH = os.path.abspath(DB_PATH)
@@ -14,7 +17,6 @@ def get_connection() -> sqlite3.Connection:
 
 @contextmanager
 def db_connection():
-   
     conn = get_connection()
     try:
         yield conn
@@ -88,20 +90,20 @@ def init_db() -> None:
         )
     """)
 
-   
+
     cursor.execute("""
         CREATE UNIQUE INDEX IF NOT EXISTS idx_screenings_candidate_job
         ON screenings(candidate_id, job_id)
     """)
-    
 
-    
+
+
     def ensure_column(table, column, coltype):
         cursor.execute(f"PRAGMA table_info({table})")
         cols = [row[1] for row in cursor.fetchall()]
         if column not in cols:
             cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
-            print(f"DEBUG: migrated {table}, added {column}")
+            logger.info("Migrated table '%s': added column '%s'", table, column)
 
     ensure_column("candidates", "created_by", "TEXT")
     ensure_column("candidates", "applied_job_id", "INTEGER")
@@ -120,7 +122,7 @@ def init_db() -> None:
 
     conn.commit()
     conn.close()
-    print("DEBUG: database initialized at", DB_PATH)
+    logger.info("Database initialized at %s", DB_PATH)
 
 
 if __name__ == "__main__":

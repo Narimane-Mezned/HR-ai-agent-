@@ -18,11 +18,14 @@ LangGraph = a collection of nodes and edges that defines the flow of your applic
  '''
 from typing import TypedDict, Optional
 import json as json_lib
+import logging
 from langgraph.graph import StateGraph, END
 
 from app.agents.screening_agent import screen_candidate
 from app.db.screenings import save_screening
 from app.db.candidates import list_candidates
+
+logger = logging.getLogger(__name__)
 
 #state : 
 class ScreeningState(TypedDict):
@@ -59,16 +62,16 @@ def categorize(state: ScreeningState) -> str:
 # the 4 category nodes just print the category and return the state with the category added
 # they are terminal/end nodes — the graph's exit points, one per possible outcome
 def suitable_node(state: ScreeningState) -> ScreeningState:
-    print(f"Category: SUITABLE (score: {state['result'].get('score')})")
+    logger.info("Category: SUITABLE (score: %s)", state['result'].get('score'))
     return {**state, "category": "suitable"}
 def borderline_node(state: ScreeningState) -> ScreeningState:
-    print(f"Category: BORDERLINE (score: {state['result'].get('score')})")
+    logger.info("Category: BORDERLINE (score: %s)", state['result'].get('score'))
     return {**state, "category": "borderline"}
 def not_suitable_node(state: ScreeningState) -> ScreeningState:
-    print(f"Category: NOT SUITABLE (score: {state['result'].get('score')})")
+    logger.info("Category: NOT SUITABLE (score: %s)", state['result'].get('score'))
     return {**state, "category": "not_suitable"}
 def needs_review_node(state: ScreeningState) -> ScreeningState:
-    print("Category: NEEDS REVIEW (screening failed or returned no score)")
+    logger.info("Category: NEEDS REVIEW (screening failed or returned no score)")
     return {**state, "category": "needs_review"}
 
 
@@ -149,7 +152,7 @@ def screen_candidates_for_job(candidate_ids: list[int], job_id: int) -> list[dic
     for candidate_id in candidate_ids:
         candidate = get_candidate(candidate_id)
         if not candidate:
-            print(f"WARNING: no candidate found with id {candidate_id}, skipping")
+            logger.warning("No candidate found with id %s, skipping", candidate_id)
             continue
 
         cv_text_for_screening = _build_cv_text_for_screening(candidate)
@@ -160,4 +163,4 @@ def screen_candidates_for_job(candidate_ids: list[int], job_id: int) -> list[dic
 
     results.sort(key=lambda r: (r["score"] is None, -(r["score"] or 0)))
 
-    return results  
+    return results

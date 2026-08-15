@@ -1,10 +1,12 @@
-
 import time
+import logging
 from openai import OpenAI, RateLimitError, APIStatusError, APITimeoutError, APIConnectionError
 
 
 from app.config import OPENROUTER_API_KEY, OPENROUTER_BASE_URL, OPENROUTER_MODEL_CHEAP
 from app.db.call_logs import log_call
+
+logger = logging.getLogger(__name__)
 
 client = OpenAI(
     api_key=OPENROUTER_API_KEY,
@@ -65,10 +67,9 @@ def call_llm(system_prompt: str, user_prompt: str, model: str = OPENROUTER_MODEL
         except (RateLimitError, APIStatusError, APITimeoutError, APIConnectionError) as e:
             last_error = e
             wait_seconds = 15 * (attempt + 1)  # 15s, 30s, 45s — increasing backoff
-            print(f"DEBUG: call failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {wait_seconds}s...")
+            logger.warning("LLM call failed (attempt %d/%d): %s. Retrying in %ds...", attempt + 1, max_retries, e, wait_seconds)
             if attempt < max_retries - 1:
                 time.sleep(wait_seconds)
 
-   
-    print(f"DEBUG: all {max_retries} attempts failed. Last error: {last_error}")
+    logger.error("All %d LLM call attempts failed. Last error: %s", max_retries, last_error)
     return None
