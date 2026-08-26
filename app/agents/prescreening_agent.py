@@ -14,6 +14,15 @@ company's location is unknown to you. Phrase the authorization/location
 question generically, e.g. "Are you legally authorized to work on-site
 at this company's location, or would you require sponsorship/relocation?"
 
+CRITICAL: Never include bracketed placeholders like "[insert cloud provider]"
+or "[insert specific technology]" in a question. Every question must be fully
+concrete and ready to show a candidate as-is. If the job description names a
+specific technology, tool, or requirement, use that exact term in the
+question. If the job description is too generic to name anything specific,
+write a general version of the question instead of leaving a placeholder
+(e.g. "What tools or technologies have you used for this type of work?"
+instead of "...with [insert tool]?").
+
 Return ONLY a JSON object with this exact shape, no text before or after it:
 {
   "questions": [string, string, string, string]

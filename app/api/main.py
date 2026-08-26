@@ -246,10 +246,9 @@ def api_create_interview(
     user: str = Depends(get_current_user),
 ):
     job = _get_owned_job_or_404(job_id, user)
+    candidate = _get_owned_candidate_or_404(candidate_id, user)
 
     interview_id = create_interview(candidate_id, job_id, confirmed_time, user)
-
-    candidate = get_candidate(candidate_id)
 
     calendar_result = None
     try:

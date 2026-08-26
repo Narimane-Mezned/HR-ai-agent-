@@ -164,6 +164,9 @@ export async function renderScreeningPage() {
     .getElementById("edit-candidate-form")
     .addEventListener("submit", async (e) => {
       e.preventDefault();
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      if (submitBtn.disabled) return;
+      submitBtn.disabled = true;
       const id = document.getElementById("ec-id").value;
       const name = document.getElementById("ec-name").value;
       const file = document.getElementById("ec-file").files[0];
@@ -175,6 +178,8 @@ export async function renderScreeningPage() {
         showToast("Candidate updated and rescored", "success");
       } catch (err) {
         showToast(err.message, "error");
+      } finally {
+        submitBtn.disabled = false;
       }
     });
 
@@ -183,6 +188,9 @@ export async function renderScreeningPage() {
     .addEventListener("submit", async (e) => {
       e.preventDefault();
       if (!activeJob) return;
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      if (submitBtn.disabled) return;
+      submitBtn.disabled = true;
       const name = document.getElementById("candidate-name").value;
       const file = document.getElementById("candidate-file").files[0];
       try {
@@ -197,6 +205,8 @@ export async function renderScreeningPage() {
         showToast("Screening complete", "success");
       } catch (err) {
         showToast(err.message, "error");
+      } finally {
+        submitBtn.disabled = false;
       }
     });
 }
@@ -391,12 +401,19 @@ async function loadPendingCandidates(jobId) {
       .addEventListener("click", () => openCandidateDetail(c.id));
     row
       .querySelector('[data-action="screen"]')
-      .addEventListener("click", async () => {
-        showToast("Screening candidate...", "info");
-        await screenCandidates(jobId, [c.id]);
-        await loadPendingCandidates(jobId);
-        await loadScreenings(jobId);
-        showToast("Screening complete", "success");
+      .addEventListener("click", async (e) => {
+        const btn = e.currentTarget;
+        if (btn.disabled) return;
+        btn.disabled = true;
+        try {
+          showToast("Screening candidate...", "info");
+          await screenCandidates(jobId, [c.id]);
+          await loadPendingCandidates(jobId);
+          await loadScreenings(jobId);
+          showToast("Screening complete", "success");
+        } finally {
+          btn.disabled = false;
+        }
       });
     container.appendChild(row);
   });
