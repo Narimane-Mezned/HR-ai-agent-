@@ -19,6 +19,7 @@ LangGraph = a collection of nodes and edges that defines the flow of your applic
 from typing import TypedDict, Optional
 import json as json_lib
 import logging
+import asyncio
 from langgraph.graph import StateGraph, END
 
 from app.agents.screening_agent import screen_candidate
@@ -137,17 +138,15 @@ def _build_cv_text_for_screening(candidate: dict) -> str:
     return cv_text
 
 
-def screen_candidates_for_job(candidate_ids: list[int], job_id: int) -> list[dict]:
-# takes that whole list of candidate IDs and runs Screening on each one against that same job, then ranks them.
-    from app.db.jobs import get_job
+# Runs screen_candidate + save_screening for every candidate IN PARALLEL instead of one
+# at a time. Each screening still runs the same synchronous code (LLM call, DB write) —
+# asyncio.to_thread() just lets several of them be "in flight" at once, since most of the
+# wait time is network latency to the LLM provider, not local CPU work.
+async def _screen_candidates_for_job_async(candidate_ids: list[int], job_id: int, job_description: str) -> list[dict]:
     from app.db.candidates import get_candidate
 
-    job = get_job(job_id)
-    if not job:
-        raise ValueError(f"No job found with id {job_id}")
-
-    job_description = job["description"]
-    results = []
+    tasks = []
+    candidates_by_id = {}
 
     for candidate_id in candidate_ids:
         candidate = get_candidate(candidate_id)
@@ -155,11 +154,37 @@ def screen_candidates_for_job(candidate_ids: list[int], job_id: int) -> list[dic
             logger.warning("No candidate found with id %s, skipping", candidate_id)
             continue
 
+        candidates_by_id[candidate_id] = candidate
         cv_text_for_screening = _build_cv_text_for_screening(candidate)
-        result = run_and_save_screening(candidate_id, job_id, cv_text_for_screening, job_description)
+        tasks.append(
+            asyncio.to_thread(
+                run_and_save_screening, candidate_id, job_id, cv_text_for_screening, job_description
+            )
+        )
+
+    screened_ids = list(candidates_by_id.keys())
+    results = await asyncio.gather(*tasks)
+
+    for candidate_id, result in zip(screened_ids, results):
         result["candidate_id"] = candidate_id
-        result["candidate_name"] = candidate["name"]
-        results.append(result)
+        result["candidate_name"] = candidates_by_id[candidate_id]["name"]
+
+    return results
+
+
+def screen_candidates_for_job(candidate_ids: list[int], job_id: int) -> list[dict]:
+# takes that whole list of candidate IDs and runs Screening on each one against that same job, then ranks them.
+# candidates are now screened IN PARALLEL (see _screen_candidates_for_job_async above) instead
+# of one at a time — same external signature and behavior, just faster for batches.
+    from app.db.jobs import get_job
+
+    job = get_job(job_id)
+    if not job:
+        raise ValueError(f"No job found with id {job_id}")
+
+    job_description = job["description"]
+
+    results = asyncio.run(_screen_candidates_for_job_async(candidate_ids, job_id, job_description))
 
     results.sort(key=lambda r: (r["score"] is None, -(r["score"] or 0)))
 
