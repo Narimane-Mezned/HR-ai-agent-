@@ -1,25 +1,50 @@
 button {
-  font-family: inherit;
+  font-family: var(--font-body);
   font-size: 13px;
+  font-weight: 500;
   border: none;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   padding: 8px 14px;
   cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    transform 0.08s ease,
+    box-shadow 0.12s ease;
 }
 button.primary {
   background: var(--color-accent);
   color: white;
+  box-shadow: 0 1px 2px rgba(59, 63, 140, 0.25);
 }
 button.primary:hover {
   background: var(--color-accent-hover);
+  box-shadow: 0 4px 10px rgba(59, 63, 140, 0.28);
+  transform: translateY(-1px);
+}
+button.primary:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(59, 63, 140, 0.25);
+}
+button.primary:disabled {
+  background: var(--color-text-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+  box-shadow: none;
+  transform: none;
 }
 button.secondary {
-  background: var(--color-bg);
+  background: var(--color-surface);
   color: var(--color-text);
   border: 1px solid var(--color-border);
 }
 button.secondary:hover {
-  background: #eceef1;
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+button.secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 button.small {
   padding: 5px 10px;
@@ -28,64 +53,82 @@ button.small {
 button.full {
   width: 100%;
 }
+button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
 
 input,
 textarea,
 select {
   width: 100%;
-  padding: 8px 10px;
+  padding: 9px 11px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   margin-bottom: var(--spacing-2);
-  font-family: inherit;
+  font-family: var(--font-body);
   font-size: 13px;
   background: var(--color-surface);
   color: var(--color-text);
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
 }
 input:focus,
 textarea:focus,
 select:focus {
   outline: none;
   border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(59, 63, 140, 0.12);
 }
 label {
   font-size: 12px;
   color: var(--color-text-muted);
   display: block;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
+  font-weight: 500;
 }
 
 .tab {
   padding: 9px 10px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   margin-bottom: 2px;
   font-size: 13px;
   color: var(--color-text-muted);
+  border-left: 2px solid transparent;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
 }
 .tab:hover {
   background: var(--color-bg);
+  color: var(--color-text);
 }
 .tab.active {
-  background: #eaf0fe;
+  background: var(--color-bg);
   color: var(--color-accent);
   font-weight: 600;
+  border-left: 2px solid var(--color-accent);
 }
 
 .job-item {
   padding: 9px 10px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   margin-bottom: 4px;
   font-size: 13px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
+  transition:
+    border-color 0.12s ease,
+    transform 0.08s ease;
 }
 .job-item:hover {
   border-color: var(--color-accent);
 }
 .job-item.active {
-  background: #eaf0fe;
+  background: var(--color-bg);
   border-color: var(--color-accent);
   color: var(--color-accent);
   font-weight: 600;
@@ -106,11 +149,19 @@ label {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px;
+  padding: 11px 13px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border-left: 3px solid var(--color-border);
+  border-radius: var(--radius-sm);
   margin-bottom: 8px;
   background: var(--color-surface);
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.1s ease;
+}
+.candidate-row:hover {
+  box-shadow: 0 4px 14px -8px rgba(26, 29, 36, 0.2);
+  transform: translateY(-1px);
 }
 .row-sub {
   font-size: 12px;
@@ -124,39 +175,71 @@ label {
 }
 
 .badge {
-  padding: 3px 10px;
-  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-family: var(--font-mono);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   white-space: nowrap;
+}
+.badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
 }
 .badge.suitable {
   background: var(--color-success-bg);
   color: var(--color-success-text);
+  border-color: color-mix(in srgb, var(--color-success-text) 30%, transparent);
 }
 .badge.borderline {
   background: var(--color-warning-bg);
   color: var(--color-warning-text);
+  border-color: color-mix(in srgb, var(--color-warning-text) 30%, transparent);
 }
 .badge.not_suitable {
   background: var(--color-danger-bg);
   color: var(--color-danger-text);
+  border-color: color-mix(in srgb, var(--color-danger-text) 30%, transparent);
+}
+
+.candidate-row:has(.badge.suitable) {
+  border-left-color: var(--color-success-text);
+}
+.candidate-row:has(.badge.borderline) {
+  border-left-color: var(--color-warning-text);
+}
+.candidate-row:has(.badge.not_suitable) {
+  border-left-color: var(--color-danger-text);
 }
 
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(20, 22, 26, 0.45);
+  background: rgba(26, 29, 36, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
+  backdrop-filter: blur(2px);
 }
 .modal {
   background: var(--color-surface);
   padding: var(--spacing-4);
   border-radius: var(--radius);
   width: 380px;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 24px 48px -16px rgba(26, 29, 36, 0.28);
+  animation: viewEnter 0.2s ease both;
 }
 .modal h3 {
   margin-bottom: var(--spacing-3);
@@ -171,17 +254,22 @@ label {
 .slot-option {
   padding: 10px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   margin-bottom: 6px;
   cursor: pointer;
   font-size: 13px;
+  font-family: var(--font-mono);
+  transition:
+    border-color 0.12s ease,
+    background-color 0.12s ease;
 }
 .slot-option:hover {
   border-color: var(--color-accent);
 }
 .slot-option.selected {
   border-color: var(--color-accent);
-  background: #eaf0fe;
+  background: var(--color-bg);
+  color: var(--color-accent);
 }
 
 table {
@@ -203,8 +291,9 @@ th {
   background: var(--color-bg);
   color: var(--color-text-muted);
   font-weight: 600;
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 tr:last-child td {
   border-bottom: none;
@@ -223,11 +312,12 @@ tr:last-child td {
   background: var(--color-text);
   color: white;
   padding: 10px 16px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   font-size: 13px;
   opacity: 0;
   transform: translateY(8px);
   transition: all 0.2s ease;
+  box-shadow: 0 8px 20px -8px rgba(26, 29, 36, 0.4);
 }
 .toast.visible {
   opacity: 1;
@@ -252,20 +342,35 @@ tr:last-child td {
   margin-bottom: 24px;
 }
 .stat-card {
+  position: relative;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  padding: 14px;
+  padding: 16px 14px;
   text-align: center;
+  overflow: hidden;
+}
+.stat-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-accent), #7477c9);
 }
 .stat-value {
-  font-size: 22px;
-  font-weight: 600;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-text);
 }
 .stat-label {
-  font-size: 12px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: var(--color-text-muted);
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 .chart-grid {
@@ -283,4 +388,8 @@ tr:last-child td {
 .chart-box {
   position: relative;
   height: 240px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--spacing-3);
 }
