@@ -64,7 +64,7 @@ document.getElementById("apply-form").addEventListener("submit", async (e) => {
       document.getElementById("apply-form").style.display = "none";
       statusEl.style.color = "var(--color-success-text)";
       statusEl.innerText =
-        "Application received â€” thank you! We'll be in touch.";
+        "Application received - thank you! We'll be in touch.";
     } else {
       statusEl.style.color = "var(--color-danger-text)";
       statusEl.innerText =

@@ -47,6 +47,9 @@ def call_llm(system_prompt: str, user_prompt: str, model: str = OPENROUTER_MODEL
                 extra_body={"reasoning": {"exclude": True}},
             )
 
+            if not response.choices:
+                raise RuntimeError("Provider returned no choices in response")
+
             latency_ms = round((time.time() - start_time) * 1000)
 
             usage = response.usage
@@ -64,9 +67,9 @@ def call_llm(system_prompt: str, user_prompt: str, model: str = OPENROUTER_MODEL
 
             return response.choices[0].message.content
 
-        except (RateLimitError, APIStatusError, APITimeoutError, APIConnectionError) as e:
+        except (RateLimitError, APIStatusError, APITimeoutError, APIConnectionError, RuntimeError) as e:
             last_error = e
-            wait_seconds = 15 * (attempt + 1)  # 15s, 30s, 45s — increasing backoff
+            wait_seconds = 15 * (attempt + 1)  
             logger.warning("LLM call failed (attempt %d/%d): %s. Retrying in %ds...", attempt + 1, max_retries, e, wait_seconds)
             if attempt < max_retries - 1:
                 time.sleep(wait_seconds)

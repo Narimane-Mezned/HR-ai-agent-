@@ -6,8 +6,35 @@ export async function renderMatchingPage() {
   const view = document.getElementById("view-matching");
   view.innerHTML = `
     <h2>Matching</h2>
-    <p class="muted">Pick a candidate to find their best-matching jobs (RAG-based retrieval).</p>
+    <p class="muted">Pick a candidate to find their best-matching jobs .</p>
     <select id="matching-candidate-select"></select>
+    <div class="section" style="margin-top:12px;">
+      <h4>Filters</h4>
+      <label>Location</label>
+      <select id="matching-filter-location">
+        <option value="">Any</option>
+        <option value="Tunis">Tunis</option>
+        <option value="Sousse">Sousse</option>
+        <option value="Sfax">Sfax</option>
+        <option value="Monastir">Monastir</option>
+        <option value="Ariana">Ariana</option>
+        <option value="Remote">Remote</option>
+      </select>
+      <label>Remote policy</label>
+      <select id="matching-filter-remote">
+        <option value="">Any</option>
+        <option value="On-site">On-site</option>
+        <option value="Hybrid">Hybrid</option>
+        <option value="Remote">Remote</option>
+      </select>
+      <label>Experience level</label>
+      <select id="matching-filter-experience">
+        <option value="">Any</option>
+        <option value="Junior">Junior</option>
+        <option value="Mid">Mid</option>
+        <option value="Senior">Senior</option>
+      </select>
+    </div>
     <button id="matching-run-btn" class="primary">Find matches</button>
     <div id="matching-results"></div>
   `;
@@ -25,10 +52,16 @@ export async function renderMatchingPage() {
     .addEventListener("click", async () => {
       const candidateId = select.value;
       if (!candidateId) return;
+      const filters = {
+        location: document.getElementById("matching-filter-location").value,
+        remote_policy: document.getElementById("matching-filter-remote").value,
+        experience_level: document.getElementById("matching-filter-experience")
+          .value,
+      };
       const resultsEl = document.getElementById("matching-results");
       resultsEl.innerHTML = `<p class="muted small">Searching...</p>`;
       try {
-        const matches = await getMatchesForCandidate(candidateId);
+        const matches = await getMatchesForCandidate(candidateId, filters);
         resultsEl.innerHTML = "";
         if (!matches.length) {
           resultsEl.innerHTML = `<p class="muted small">No matches found.</p>`;

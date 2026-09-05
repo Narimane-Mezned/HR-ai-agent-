@@ -6,8 +6,22 @@ export function listJobs() {
 export function getJob(jobId) {
   return apiFetch(`/jobs/${jobId}`);
 }
-export function createJob({ title, description, requirements }) {
-  return apiFormUrlEncoded("/jobs", { title, description, requirements });
+export function createJob({
+  title,
+  description,
+  requirements,
+  location,
+  remote_policy,
+  experience_level,
+}) {
+  return apiFormUrlEncoded("/jobs", {
+    title,
+    description,
+    requirements,
+    location,
+    remote_policy,
+    experience_level,
+  });
 }
 export function updateJob(jobId, fields) {
   return apiFormUrlEncoded(`/jobs/${jobId}`, fields, "PUT");

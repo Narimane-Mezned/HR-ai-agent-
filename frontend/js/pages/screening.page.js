@@ -77,6 +77,30 @@ export async function renderScreeningPage() {
           <textarea id="nj-desc" rows="3" required></textarea>
           <label>Requirements</label>
           <textarea id="nj-req" rows="2"></textarea>
+          <label>Location</label>
+          <select id="nj-location">
+            <option value="">Not specified</option>
+            <option value="Tunis">Tunis</option>
+            <option value="Sousse">Sousse</option>
+            <option value="Sfax">Sfax</option>
+            <option value="Monastir">Monastir</option>
+            <option value="Ariana">Ariana</option>
+            <option value="Remote">Remote</option>
+          </select>
+          <label>Remote policy</label>
+          <select id="nj-remote">
+            <option value="">Not specified</option>
+            <option value="On-site">On-site</option>
+            <option value="Hybrid">Hybrid</option>
+            <option value="Remote">Remote</option>
+          </select>
+          <label>Experience level</label>
+          <select id="nj-experience">
+            <option value="">Not specified</option>
+            <option value="Junior">Junior</option>
+            <option value="Mid">Mid</option>
+            <option value="Senior">Senior</option>
+          </select>
           <div class="modal-actions">
             <button type="button" class="secondary" id="nj-cancel">Cancel</button>
             <button type="submit" class="primary" id="nj-submit">Create</button>
@@ -103,8 +127,9 @@ export async function renderScreeningPage() {
     </div>
 
     <div id="candidate-detail-modal" class="modal-overlay" style="display:none;">
-      <div class="modal" style="width:520px; max-height:80vh; overflow-y:auto;">
+      <div class="modal" style="width:800px; max-width:90vw; max-height:80vh; overflow-y:auto;">
         <h3 id="cd-name"></h3>
+        <div id="cd-screening"></div>
         <div id="cd-contact"></div>
         <div id="cd-answers"></div>
         <label style="margin-top:10px;">Full CV</label>
@@ -143,13 +168,30 @@ export async function renderScreeningPage() {
     const title = document.getElementById("nj-title").value;
     const description = document.getElementById("nj-desc").value;
     const requirements = document.getElementById("nj-req").value;
+    const location = document.getElementById("nj-location").value;
+    const remote_policy = document.getElementById("nj-remote").value;
+    const experience_level = document.getElementById("nj-experience").value;
     const editingId = e.target.dataset.editing;
     try {
       if (editingId) {
-        await updateJob(editingId, { title, description, requirements });
+        await updateJob(editingId, {
+          title,
+          description,
+          requirements,
+          location,
+          remote_policy,
+          experience_level,
+        });
         showToast("Job updated — rescoring candidates...", "info");
       } else {
-        await createJob({ title, description, requirements });
+        await createJob({
+          title,
+          description,
+          requirements,
+          location,
+          remote_policy,
+          experience_level,
+        });
         showToast("Job created", "success");
       }
       closeModal(jobModal);
@@ -240,6 +282,10 @@ async function selectJob(jobId) {
     document.getElementById("nj-title").value = activeJob.title;
     document.getElementById("nj-desc").value = activeJob.description;
     document.getElementById("nj-req").value = activeJob.requirements || "";
+    document.getElementById("nj-location").value = activeJob.location || "";
+    document.getElementById("nj-remote").value = activeJob.remote_policy || "";
+    document.getElementById("nj-experience").value =
+      activeJob.experience_level || "";
     document.getElementById("job-form").dataset.editing = activeJob.id;
     openModal(document.getElementById("new-job-modal"));
   };
@@ -264,9 +310,33 @@ async function selectJob(jobId) {
 `;
 }
 
-async function openCandidateDetail(candidateId) {
+function normalizeUrl(url) {
+  if (!url) return url;
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
+async function openCandidateDetail(candidateId, screening = null) {
   const detail = await getCandidateDetail(candidateId);
   document.getElementById("cd-name").innerText = detail.name;
+
+  const screeningEl = document.getElementById("cd-screening");
+  if (screening) {
+    let languages = [];
+    try {
+      languages = JSON.parse(screening.languages || "[]");
+    } catch {
+      languages = [];
+    }
+    screeningEl.innerHTML = `
+      <p class="small"><strong>Score:</strong> ${screening.score ?? "N/A"} — <span class="badge ${screening.category}">${screening.verdict}</span></p>
+      ${screening.education ? `<p class="small"><strong>Education:</strong> ${screening.education}</p>` : ""}
+      ${languages.length ? `<p class="small"><strong>Languages:</strong> ${languages.join(", ")}</p>` : ""}
+      ${screening.location ? `<p class="small"><strong>Location:</strong> ${screening.location}</p>` : ""}
+      ${screening.confidence_level ? `<p class="small"><strong>Confidence:</strong> ${screening.confidence_level}${screening.confidence_reasoning ? ` — ${screening.confidence_reasoning}` : ""}</p>` : ""}
+    `;
+  } else {
+    screeningEl.innerHTML = "";
+  }
 
   const contactParts = [];
   if (detail.email) contactParts.push(`Email: ${detail.email}`);
@@ -277,9 +347,13 @@ async function openCandidateDetail(candidateId) {
 
   const links = [];
   if (detail.linkedin_url)
-    links.push(`<a href="${detail.linkedin_url}" target="_blank">LinkedIn</a>`);
+    links.push(
+      `<a href="${normalizeUrl(detail.linkedin_url)}" target="_blank">LinkedIn</a>`,
+    );
   if (detail.github_url)
-    links.push(`<a href="${detail.github_url}" target="_blank">GitHub</a>`);
+    links.push(
+      `<a href="${normalizeUrl(detail.github_url)}" target="_blank">GitHub</a>`,
+    );
   const linksLine = links.length
     ? `<p class="small">${links.join(" · ")}</p>`
     : "";
@@ -332,7 +406,7 @@ async function loadScreenings(jobId) {
     `;
     row
       .querySelector('[data-action="details"]')
-      .addEventListener("click", () => openCandidateDetail(r.candidate_id));
+      .addEventListener("click", () => openCandidateDetail(r.candidate_id, r));
     row
       .querySelector('[data-action="schedule"]')
       .addEventListener("click", () =>

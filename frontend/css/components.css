@@ -89,6 +89,52 @@ label {
   font-weight: 500;
 }
 
+.password-field {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  margin-bottom: var(--spacing-2);
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+.password-field:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(59, 63, 140, 0.12);
+}
+.password-field input {
+  flex: 1;
+  border: none;
+  margin-bottom: 0;
+  min-width: 0;
+}
+.password-field input:focus {
+  outline: none;
+  box-shadow: none;
+}
+.password-toggle {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+.password-toggle:hover {
+  color: var(--color-accent);
+}
+.password-toggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
 .tab {
   padding: 9px 10px;
   border-radius: var(--radius-sm);
@@ -236,7 +282,8 @@ label {
   background: var(--color-surface);
   padding: var(--spacing-4);
   border-radius: var(--radius);
-  width: 380px;
+  width: 440px;
+  max-width: 90vw;
   border: 1px solid var(--color-border);
   box-shadow: 0 24px 48px -16px rgba(26, 29, 36, 0.28);
   animation: viewEnter 0.2s ease both;

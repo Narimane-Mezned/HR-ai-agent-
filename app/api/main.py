@@ -4,7 +4,7 @@ import json as json_lib
 import logging
 from collections import Counter
 
-from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
@@ -18,15 +18,15 @@ from app.db.screenings import (
     list_screenings_for_job, list_screenings_for_candidate,
     list_all_screenings_for_user, delete_screenings_for_candidate,
 )
-from app.pdf_utils import extract_text_from_pdf
 from app.graph.orchestrator import screen_candidates_for_job, run_and_save_screening
 from app.agents.scheduling_agent import propose_interview_slots, build_confirmation_message
 from app.db.interviews import create_interview, list_interviews_for_hr
 from app.db.users import UsernameAlreadyExistsError, create_user, verify_user, get_user_profile
 from app.auth import create_access_token, get_current_user
-from app.rag.job_store import index_jobs, find_matching_jobs
+from app.rag.job_store import index_jobs
+from app.agents.matching_agent import match_candidate_to_jobs
 from app.agents.prescreening_agent import generate_prescreening_questions
-from app.pdf_utils import extract_contact_info
+from app.pdf_utils import extract_text_from_pdf, extract_text_and_links_from_pdf, extract_contact_info
 from app.agents.onboarding_agent import generate_onboarding_checklist
 from app.db.candidates import mark_candidate_hired, list_hired_candidates
 from app.calendar_service import create_calendar_event
@@ -115,19 +115,36 @@ def api_get_job(job_id: int, user: str = Depends(get_current_user)):
 
 
 @app.post("/jobs")
-def api_create_job(title: str = Form(...), description: str = Form(...), requirements: str = Form(""), user: str = Depends(get_current_user)):
-    job_id = create_job(title, description, requirements, user)
+def api_create_job(
+    title: str = Form(...), description: str = Form(...), requirements: str = Form(""),
+    location: str = Form(""), remote_policy: str = Form(""), experience_level: str = Form(""),
+    user: str = Depends(get_current_user),
+):
+    job_id = create_job(title, description, requirements, user, location, remote_policy, experience_level)
     job = get_job(job_id)
-    index_jobs([{"id": str(job_id), "title": title, "description": description}])
+    index_jobs([{
+        "id": str(job_id), "title": title, "description": description, "created_by": user,
+        "location": location, "remote_policy": remote_policy, "experience_level": experience_level,
+    }])
     return job
 
 
 @app.put("/jobs/{job_id}")
-def api_update_job(job_id: int, title: str = Form(None), description: str = Form(None), requirements: str = Form(None), user: str = Depends(get_current_user)):
+def api_update_job(
+    job_id: int, title: str = Form(None), description: str = Form(None), requirements: str = Form(None),
+    location: str = Form(None), remote_policy: str = Form(None), experience_level: str = Form(None),
+    user: str = Depends(get_current_user),
+):
     _get_owned_job_or_404(job_id, user)
-    update_job(job_id, title=title, description=description, requirements=requirements)
+    update_job(
+        job_id, title=title, description=description, requirements=requirements,
+        location=location, remote_policy=remote_policy, experience_level=experience_level,
+    )
     job = get_job(job_id)
-    index_jobs([{"id": str(job_id), "title": job["title"], "description": job["description"]}])
+    index_jobs([{
+        "id": str(job_id), "title": job["title"], "description": job["description"], "created_by": user,
+        "location": job["location"], "remote_policy": job["remote_policy"], "experience_level": job["experience_level"],
+    }])
     if description is not None or requirements is not None:
         _rescore_job_candidates(job_id)  # content changed -> re-evaluate everyone screened against it
     return get_job(job_id)
@@ -148,11 +165,11 @@ async def api_create_candidate(name: str = Form(...), file: UploadFile = File(..
         tmp.write(contents)
         tmp_path = tmp.name
     try:
-        cv_text = extract_text_from_pdf(tmp_path)
+        cv_text, pdf_links = extract_text_and_links_from_pdf(tmp_path)
     finally:
         os.remove(tmp_path)
 
-    contact = extract_contact_info(cv_text)
+    contact = extract_contact_info(cv_text, pdf_links)
     candidate_id = create_candidate(name, cv_text, user, **contact)
 
     with open(f"{RESUMES_DIR}/{candidate_id}.pdf", "wb") as f:
@@ -197,24 +214,23 @@ def api_delete_candidate(candidate_id: int, user: str = Depends(get_current_user
 
 
 @app.get("/candidates/{candidate_id}/matches")
-def api_candidate_matches(candidate_id: int, user: str = Depends(get_current_user)):
+def api_candidate_matches(
+    candidate_id: int,
+    location: str = Query(None),
+    remote_policy: str = Query(None),
+    experience_level: str = Query(None),
+    user: str = Depends(get_current_user),
+):
     candidate = _get_owned_candidate_or_404(candidate_id, user)
 
-    from app.agents.screening_agent import screen_candidate
-    retrieved = find_matching_jobs(candidate["cv_text"], top_k=10)
-
-    results = []
-    for jm in retrieved:
-        job = get_job(int(jm["id"]))
-        if not job or job["created_by"] != user:
-            continue
-        result = screen_candidate(candidate["cv_text"], job["description"])
-        result["job_id"] = job["id"]
-        result["job_title"] = job["title"]
-        results.append(result)
-        if len(results) >= 3:
-            break
-    return results
+    return match_candidate_to_jobs(
+        candidate["cv_text"],
+        created_by=user,
+        top_k=3,
+        location=location,
+        remote_policy=remote_policy,
+        experience_level=experience_level,
+    )
 
 
 # --- Screening ---
@@ -393,11 +409,11 @@ async def api_public_apply(
         tmp.write(contents)
         tmp_path = tmp.name
     try:
-        cv_text = extract_text_from_pdf(tmp_path)
+        cv_text, pdf_links = extract_text_and_links_from_pdf(tmp_path)
     finally:
         os.remove(tmp_path)
 
-    contact = extract_contact_info(cv_text)
+    contact = extract_contact_info(cv_text, pdf_links)
     if phone:
         contact["phone"] = phone  
     if github_url:

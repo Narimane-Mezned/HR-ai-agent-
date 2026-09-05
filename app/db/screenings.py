@@ -9,8 +9,9 @@ def save_screening(candidate_id: int, job_id: int, result: dict) -> int:
         cursor.execute(
             """
             INSERT INTO screenings
-                (candidate_id, job_id, score, verdict, justification, category, skills, years_experience)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (candidate_id, job_id, score, verdict, justification, category, skills, years_experience,
+                 education, languages, location, confidence_level, confidence_reasoning)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(candidate_id, job_id) DO UPDATE SET
                 score = excluded.score,
                 verdict = excluded.verdict,
@@ -18,12 +19,19 @@ def save_screening(candidate_id: int, job_id: int, result: dict) -> int:
                 category = excluded.category,
                 skills = excluded.skills,
                 years_experience = excluded.years_experience,
+                education = excluded.education,
+                languages = excluded.languages,
+                location = excluded.location,
+                confidence_level = excluded.confidence_level,
+                confidence_reasoning = excluded.confidence_reasoning,
                 created_at = CURRENT_TIMESTAMP
             """,
             (
                 candidate_id, job_id,
                 result.get("score"), result.get("verdict"), result.get("justification"),
                 result.get("category"), json.dumps(result.get("skills", [])), result.get("years_experience"),
+                result.get("education"), json.dumps(result.get("languages", [])), result.get("location"),
+                result.get("confidence_level"), result.get("confidence_reasoning"),
             ),
         )
         conn.commit()

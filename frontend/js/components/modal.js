@@ -1,4 +1,5 @@
 export function openModal(modalEl) {
+  document.body.appendChild(modalEl);
   modalEl.style.display = "flex";
 }
 export function closeModal(modalEl) {
