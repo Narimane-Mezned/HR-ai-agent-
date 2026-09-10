@@ -362,12 +362,24 @@ async function openCandidateDetail(candidateId, screening = null) {
 
   const answersEl = document.getElementById("cd-answers");
   const entries = Object.entries(detail.prescreening_answers || {});
-  answersEl.innerHTML = entries.length
-    ? `<label>Pre-screening answers</label>` +
-      entries
-        .map(([q, a]) => `<p class="small"><strong>${q}</strong><br>${a}</p>`)
-        .join("")
-    : "";
+  const flags = detail.prescreening_flags;
+  const flagsHtml =
+    flags && flags.has_concerns
+      ? `<div class="section" style="border-color:var(--color-danger-text); margin-bottom:8px;">
+         <strong style="color:var(--color-danger-text);">⚠ Pre-screening concerns</strong>
+         <ul style="margin:6px 0 0 18px; font-size:13px;">
+           ${flags.concerns.map((c) => `<li>${c}</li>`).join("")}
+         </ul>
+       </div>`
+      : "";
+  answersEl.innerHTML =
+    flagsHtml +
+    (entries.length
+      ? `<label>Pre-screening answers</label>` +
+        entries
+          .map(([q, a]) => `<p class="small"><strong>${q}</strong><br>${a}</p>`)
+          .join("")
+      : "");
 
   document.getElementById("cd-cv").innerText = detail.cv_text;
 
@@ -463,8 +475,18 @@ async function loadPendingCandidates(jobId) {
   pending.forEach((c) => {
     const row = document.createElement("div");
     row.className = "candidate-row";
+    let flags = null;
+    try {
+      flags = c.prescreening_flags ? JSON.parse(c.prescreening_flags) : null;
+    } catch {
+      flags = null;
+    }
+    const flagBadge =
+      flags && flags.has_concerns
+        ? `<span class="badge not_suitable" title="${flags.concerns.join(" | ").replace(/"/g, "&quot;")}">⚠ Flagged</span>`
+        : "";
     row.innerHTML = `
-      <div><strong>${c.name}</strong></div>
+      <div><strong>${c.name}</strong> ${flagBadge}</div>
       <div class="row-actions">
         <button class="secondary small" data-action="details">Details</button>
         <button class="primary small" data-action="screen">Screen</button>

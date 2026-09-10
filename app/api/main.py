@@ -20,12 +20,12 @@ from app.db.screenings import (
 )
 from app.graph.orchestrator import screen_candidates_for_job, run_and_save_screening
 from app.agents.scheduling_agent import propose_interview_slots, build_confirmation_message
-from app.db.interviews import create_interview, list_interviews_for_hr
+from app.db.interviews import create_interview, list_interviews_for_hr, list_interviews_today
 from app.db.users import UsernameAlreadyExistsError, create_user, verify_user, get_user_profile
 from app.auth import create_access_token, get_current_user
 from app.rag.job_store import index_jobs
 from app.agents.matching_agent import match_candidate_to_jobs
-from app.agents.prescreening_agent import generate_prescreening_questions
+from app.agents.prescreening_agent import generate_prescreening_questions, analyze_prescreening_answers
 from app.pdf_utils import extract_text_from_pdf, extract_text_and_links_from_pdf, extract_contact_info
 from app.agents.onboarding_agent import generate_onboarding_checklist
 from app.db.candidates import mark_candidate_hired, list_hired_candidates
@@ -292,6 +292,11 @@ def api_list_interviews(user: str = Depends(get_current_user)):
     return list_interviews_for_hr(user)
 
 
+@app.get("/interviews/today")
+def api_interviews_today(user: str = Depends(get_current_user)):
+    return list_interviews_today(user)
+
+
 # --- Dashboard ---
 
 @app.get("/dashboard/summary")
@@ -381,7 +386,7 @@ def api_prescreening_questions(request: Request, job_id: int):
     job = get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    questions = generate_prescreening_questions(job["description"])
+    questions = generate_prescreening_questions(job["description"], job.get("experience_level"))
     return {"questions": questions}
 
 @app.post("/public/jobs/{job_id}/apply")
@@ -419,9 +424,19 @@ async def api_public_apply(
     if github_url:
         contact["github_url"] = github_url
 
+    prescreening_flags = None
+    if prescreening_answers:
+        try:
+            answers_dict = json_lib.loads(prescreening_answers)
+        except (json_lib.JSONDecodeError, TypeError):
+            answers_dict = None
+        if answers_dict:
+            prescreening_flags = json_lib.dumps(analyze_prescreening_answers(answers_dict))
+
     candidate_id = create_candidate(
         name, cv_text, job["created_by"],
         applied_job_id=job_id, prescreening_answers=prescreening_answers or None,
+        prescreening_flags=prescreening_flags,
         **contact,
     )
 
@@ -442,6 +457,13 @@ def api_candidate_detail(candidate_id: int, user: str = Depends(get_current_user
         except (json_lib.JSONDecodeError, TypeError):
             pass
 
+    flags = {"has_concerns": False, "concerns": []}
+    if candidate.get("prescreening_flags"):
+        try:
+            flags = json_lib.loads(candidate["prescreening_flags"])
+        except (json_lib.JSONDecodeError, TypeError):
+            pass
+
     return {
         "id": candidate["id"],
         "name": candidate["name"],
@@ -451,6 +473,7 @@ def api_candidate_detail(candidate_id: int, user: str = Depends(get_current_user
         "linkedin_url": candidate.get("linkedin_url"),
         "github_url": candidate.get("github_url"),
         "prescreening_answers": answers,
+        "prescreening_flags": flags,
         "has_resume": os.path.exists(f"{RESUMES_DIR}/{candidate_id}.pdf"),
     }
 

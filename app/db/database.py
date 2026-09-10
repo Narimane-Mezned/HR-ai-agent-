@@ -127,6 +127,8 @@ def init_db() -> None:
         ensure_column("jobs", "location", "TEXT")
         ensure_column("jobs", "remote_policy", "TEXT")
         ensure_column("jobs", "experience_level", "TEXT")
+        ensure_column("candidates", "prescreening_flags", "TEXT")
+        ensure_column("interviews", "reminder_sent", "INTEGER DEFAULT 0")
 
         conn.commit()
         logger.info("Database initialized at %s", DB_PATH)

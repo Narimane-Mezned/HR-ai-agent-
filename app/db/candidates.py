@@ -2,16 +2,18 @@ from app.db.database import db_connection
 
 def create_candidate(
     name: str, cv_text: str, created_by: str,
-    applied_job_id: int = None, prescreening_answers: str = None,
+    applied_job_id: int = None, prescreening_answers: str = None, prescreening_flags: str = None,
     email: str = None, phone: str = None, linkedin_url: str = None, github_url: str = None,
 ) -> int:
     with db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
             """INSERT INTO candidates
-               (name, cv_text, created_by, applied_job_id, prescreening_answers, email, phone, linkedin_url, github_url)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (name, cv_text, created_by, applied_job_id, prescreening_answers, email, phone, linkedin_url, github_url),
+               (name, cv_text, created_by, applied_job_id, prescreening_answers, prescreening_flags,
+                email, phone, linkedin_url, github_url)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (name, cv_text, created_by, applied_job_id, prescreening_answers, prescreening_flags,
+             email, phone, linkedin_url, github_url),
         )
         conn.commit()
         return cursor.lastrowid

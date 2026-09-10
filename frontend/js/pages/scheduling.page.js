@@ -2,6 +2,7 @@ import {
   proposeInterviewTimes,
   confirmInterview,
   listInterviews,
+  listInterviewsToday,
 } from "../services/scheduling.service.js";
 import {
   openModal,
@@ -10,6 +11,8 @@ import {
 } from "../components/modal.js";
 import { showToast } from "../components/toast.js";
 
+const DISPLAY_TIMEZONE = "Africa/Tunis";
+
 let scheduleCtx = null;
 
 export async function renderSchedulingPage() {
@@ -17,9 +20,38 @@ export async function renderSchedulingPage() {
   view.innerHTML = `
     <h2>Scheduling window</h2>
     <p class="muted">Your confirmed interviews.</p>
+    <div id="today-banner"></div>
     <div id="interviews-list"></div>
   `;
+  await loadTodayInterviews();
   await loadInterviews();
+}
+
+async function loadTodayInterviews() {
+  const bannerEl = document.getElementById("today-banner");
+  const today = await listInterviewsToday();
+  if (!today.length) {
+    bannerEl.innerHTML = "";
+    return;
+  }
+  bannerEl.innerHTML = `
+    <div class="section" style="border-color:var(--color-accent); margin-bottom:12px;">
+      <strong style="color:var(--color-accent);">Your interviews today</strong>
+      ${today
+        .map((i) => {
+          const time = new Date(i.confirmed_time).toLocaleTimeString(
+            undefined,
+            {
+              hour: "2-digit",
+              minute: "2-digit",
+              timeZone: DISPLAY_TIMEZONE,
+            },
+          );
+          return `<div class="small" style="margin-top:6px;">${time} — ${i.candidate_name} (${i.job_title})</div>`;
+        })
+        .join("")}
+    </div>
+  `;
 }
 
 async function loadInterviews() {
@@ -31,8 +63,20 @@ async function loadInterviews() {
   }
   container.innerHTML = `
     <table>
-      <tr><th>Candidate</th><th>Job</th><th>Time</th></tr>
-      ${interviews.map((i) => `<tr><td>${i.candidate_name}</td><td>${i.job_title}</td><td>${i.confirmed_time}</td></tr>`).join("")}
+      <tr><th>Candidate</th><th>Job</th><th>Time (${DISPLAY_TIMEZONE})</th></tr>
+      ${interviews
+        .map((i) => {
+          const readable = new Date(i.confirmed_time).toLocaleString(
+            undefined,
+            {
+              dateStyle: "medium",
+              timeStyle: "short",
+              timeZone: DISPLAY_TIMEZONE,
+            },
+          );
+          return `<tr><td>${i.candidate_name}</td><td>${i.job_title}</td><td>${readable}</td></tr>`;
+        })
+        .join("")}
     </table>
   `;
 }
@@ -56,9 +100,11 @@ export async function openScheduleModal(
   try {
     const data = await proposeInterviewTimes(candidateName, jobTitle);
     const slots = data.proposed_slots || [];
-    slotsEl.innerHTML = "";
+    slotsEl.innerHTML = data.message
+      ? `<p class="muted small">${data.message}</p>`
+      : "";
     if (!slots.length) {
-      slotsEl.innerHTML = `<p class="muted small">Could not generate proposed times. Enter one manually below.</p>`;
+      slotsEl.innerHTML += `<p class="muted small">Enter a time manually below.</p>`;
     }
     slots.forEach((slot) => {
       const div = document.createElement("div");
@@ -66,8 +112,9 @@ export async function openScheduleModal(
       const readable = new Date(slot).toLocaleString(undefined, {
         dateStyle: "medium",
         timeStyle: "short",
+        timeZone: DISPLAY_TIMEZONE,
       });
-      div.innerText = readable;
+      div.innerText = `${readable} (${DISPLAY_TIMEZONE})`;
       div.onclick = () => {
         document
           .querySelectorAll(".slot-option")

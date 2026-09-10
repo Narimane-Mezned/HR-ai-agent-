@@ -18,3 +18,7 @@ export function confirmInterview({ candidateId, jobId, confirmedTime }) {
 export function listInterviews() {
   return apiFetch("/interviews");
 }
+
+export function listInterviewsToday() {
+  return apiFetch("/interviews/today");
+}
