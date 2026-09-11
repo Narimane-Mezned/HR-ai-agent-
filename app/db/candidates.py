@@ -61,6 +61,28 @@ def mark_candidate_hired(candidate_id: int, job_id: int, checklist_json: str) ->
         return cursor.rowcount > 0
 
 
+def update_onboarding_checklist(candidate_id: int, checklist_json: str) -> bool:
+    with db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE candidates SET onboarding_checklist = ? WHERE id = ?",
+            (checklist_json, candidate_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def update_mentor_name(candidate_id: int, mentor_name: str) -> bool:
+    with db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE candidates SET mentor_name = ? WHERE id = ?",
+            (mentor_name, candidate_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
 def list_hired_candidates(created_by: str) -> list[dict]:
     with db_connection() as conn:
         cursor = conn.cursor()

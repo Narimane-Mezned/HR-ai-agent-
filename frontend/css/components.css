@@ -440,3 +440,34 @@ tr:last-child td {
   border-radius: var(--radius);
   padding: var(--spacing-3);
 }
+
+table.onboarding-checklist {
+  width: 100%;
+  border: none;
+  margin-bottom: 4px;
+}
+table.onboarding-checklist td {
+  border-bottom: 1px solid var(--color-border);
+  padding: 6px 4px;
+  font-size: 13px;
+}
+table.onboarding-checklist tr:last-child td {
+  border-bottom: none;
+}
+table.onboarding-checklist input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+}
+.checklist-done {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
+}
+.onboarding-section-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 6px;
+}

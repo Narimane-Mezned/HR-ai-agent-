@@ -28,7 +28,7 @@ from app.agents.matching_agent import match_candidate_to_jobs
 from app.agents.prescreening_agent import generate_prescreening_questions, analyze_prescreening_answers
 from app.pdf_utils import extract_text_from_pdf, extract_text_and_links_from_pdf, extract_contact_info
 from app.agents.onboarding_agent import generate_onboarding_checklist
-from app.db.candidates import mark_candidate_hired, list_hired_candidates
+from app.db.candidates import mark_candidate_hired, list_hired_candidates, update_onboarding_checklist, update_mentor_name
 from app.calendar_service import create_calendar_event
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -518,6 +518,37 @@ def api_list_onboarding(user: str = Depends(get_current_user)):
             "candidate_name": c["name"],
             "job_title": job["title"] if job else "Unknown",
             "welcome_message": checklist.get("welcome_message", ""),
+            "first_day_agenda": checklist.get("first_day_agenda", []),
+            "access_checklist": checklist.get("access_checklist", []),
             "checklist": checklist.get("checklist", []),
+            "mentor_name": c.get("mentor_name") or "",
         })
     return result
+
+
+@app.post("/candidates/{candidate_id}/onboarding/toggle-item")
+def api_toggle_onboarding_item(
+    candidate_id: int, list_name: str = Form(...), index: int = Form(...),
+    user: str = Depends(get_current_user),
+):
+    candidate = _get_owned_candidate_or_404(candidate_id, user)
+    if list_name not in ("access_checklist", "checklist"):
+        raise HTTPException(status_code=400, detail="Invalid list_name")
+
+    checklist = json_lib.loads(candidate["onboarding_checklist"]) if candidate.get("onboarding_checklist") else {}
+    items = checklist.get(list_name, [])
+    if index < 0 or index >= len(items):
+        raise HTTPException(status_code=400, detail="Invalid item index")
+
+    items[index]["done"] = not items[index].get("done", False)
+    checklist[list_name] = items
+    update_onboarding_checklist(candidate_id, json_lib.dumps(checklist))
+
+    return checklist
+
+
+@app.put("/candidates/{candidate_id}/mentor")
+def api_update_mentor(candidate_id: int, mentor_name: str = Form(""), user: str = Depends(get_current_user)):
+    _get_owned_candidate_or_404(candidate_id, user)
+    update_mentor_name(candidate_id, mentor_name)
+    return {"ok": True, "mentor_name": mentor_name}
