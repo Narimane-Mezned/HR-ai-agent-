@@ -3,12 +3,14 @@ import os
 import json as json_lib
 import logging
 from collections import Counter
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 
+from app.db.database import init_db
 from app.db.jobs import create_job, get_job, list_jobs, update_job, delete_job
 from app.db.candidates import (
     create_candidate, get_candidate, list_candidates,
@@ -43,7 +45,13 @@ from app.pdf_utils import validate_pdf_upload
 RESUMES_DIR = "data/resumes"
 os.makedirs(RESUMES_DIR, exist_ok=True)
 
-app = FastAPI(title="HR AI Agent API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(title="HR AI Agent API", lifespan=lifespan)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"

@@ -165,8 +165,8 @@ def screen_candidate(
             strong_result["routed_to_strong_model"] = True
             result = strong_result
 
-        if not bypass_cache and result.get("verdict") != "Error":
-            save_cached_result(cache_key, result, model)
+    if not bypass_cache and result.get("verdict") != "Error":
+        save_cached_result(cache_key, result, model)
 
     return result
 
