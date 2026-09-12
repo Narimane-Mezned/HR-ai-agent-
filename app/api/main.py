@@ -27,7 +27,7 @@ from app.db.interviews import create_interview, list_interviews_for_hr, list_int
 from app.db.users import UsernameAlreadyExistsError, create_user, verify_user, get_user_profile
 from app.agents.communication_agent import generate_candidate_email
 from app.email_service import send_email
-from app.auth import create_access_token, get_current_user
+from app.auth import create_access_token, get_current_user, validate_password_strength
 from app.rag.job_store import index_jobs
 from app.agents.matching_agent import match_candidate_to_jobs
 from app.agents.prescreening_agent import generate_prescreening_questions, analyze_prescreening_answers
@@ -72,6 +72,9 @@ def root():
 @app.post("/register")
 def api_register(username: str = Form(...), password: str = Form(...), company_name: str = Form(...), email: str = Form("")):
     normalized = username.strip().lower()
+    password_error = validate_password_strength(password)
+    if password_error:
+        raise HTTPException(status_code=400, detail=password_error)
     try:
         create_user(username, password, company_name, email)
     except UsernameAlreadyExistsError:

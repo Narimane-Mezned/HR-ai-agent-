@@ -18,6 +18,13 @@ function attachPasswordToggle(toggleId, inputId) {
   });
 }
 
+function getPasswordError(password) {
+  if (password.length < 8)
+    return "Password must be at least 8 characters long.";
+  if (!/\d/.test(password)) return "Password must contain at least one number.";
+  return null;
+}
+
 export function renderLoginPage(onSuccess) {
   const screen = document.getElementById("login-screen");
   screen.style.display = "flex";
@@ -75,6 +82,7 @@ export function renderLoginPage(onSuccess) {
           <input id="re-password" type="password" placeholder="Password" required>
           <button type="button" id="re-password-toggle" class="password-toggle" aria-label="Show password"></button>
         </div>
+        <small style="color:#888; font-size:12px; display:block; margin-top:-8px;">Min. 8 characters, at least 1 number</small>
         <input id="re-company" placeholder="Company name" required>
         <input id="re-email" type="email" placeholder="Email (optional)">
         <button type="submit" class="primary full">Create account</button>
@@ -86,10 +94,16 @@ export function renderLoginPage(onSuccess) {
       .addEventListener("submit", async (e) => {
         e.preventDefault();
         errorEl.innerText = "";
+        const password = document.getElementById("re-password").value;
+        const passwordError = getPasswordError(password);
+        if (passwordError) {
+          errorEl.innerText = passwordError;
+          return;
+        }
         try {
           await register(
             document.getElementById("re-username").value,
-            document.getElementById("re-password").value,
+            password,
             document.getElementById("re-company").value,
             document.getElementById("re-email").value,
           );

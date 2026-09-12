@@ -1,4 +1,5 @@
 import os
+import re
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from jose import jwt, JWTError
@@ -9,6 +10,17 @@ load_dotenv()
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "hr-ai-agent-dev-secret-change-in-production")
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_HOURS = 8
+
+PASSWORD_MIN_LENGTH = 8
+
+
+def validate_password_strength(password: str) -> str | None:
+    """Returns an error message if the password doesn't meet the policy, otherwise None."""
+    if len(password) < PASSWORD_MIN_LENGTH:
+        return f"Password must be at least {PASSWORD_MIN_LENGTH} characters long."
+    if not re.search(r"\d", password):
+        return "Password must contain at least one number."
+    return None
 
 
 def create_access_token(username: str) -> str:
