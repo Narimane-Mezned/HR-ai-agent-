@@ -24,7 +24,6 @@ import {
   setupModalDismiss,
 } from "../components/modal.js";
 import { showToast } from "../components/toast.js";
-import { openScheduleModal } from "./scheduling.page.js";
 
 let activeJob = null;
 
@@ -412,23 +411,11 @@ async function loadScreenings(jobId) {
         <button class="secondary small" data-action="details">Details</button>
         <button class="secondary small" data-action="edit">Update CV</button>
         <button class="secondary small" data-action="delete">Delete</button>
-        <button class="secondary small" data-action="schedule">Schedule</button>
-        <button class="secondary small" data-action="hire">Mark Hired</button>
       </div>
     `;
     row
       .querySelector('[data-action="details"]')
       .addEventListener("click", () => openCandidateDetail(r.candidate_id, r));
-    row
-      .querySelector('[data-action="schedule"]')
-      .addEventListener("click", () =>
-        openScheduleModal(
-          r.candidate_id,
-          r.candidate_name,
-          activeJob.id,
-          activeJob.title,
-        ),
-      );
     row.querySelector('[data-action="edit"]').addEventListener("click", () => {
       document.getElementById("ec-id").value = r.candidate_id;
       document.getElementById("ec-name").value = r.candidate_name;
@@ -447,20 +434,6 @@ async function loadScreenings(jobId) {
         await loadScreenings(activeJob.id);
       });
     container.appendChild(row);
-    row
-      .querySelector('[data-action="hire"]')
-      .addEventListener("click", async () => {
-        if (
-          !confirm(
-            `Mark ${r.candidate_name} as hired for ${activeJob.title}? This generates their onboarding checklist.`,
-          )
-        )
-          return;
-        showToast("Generating onboarding checklist...", "info");
-        const { markHired } = await import("../services/onboarding.service.js");
-        await markHired(r.candidate_id, activeJob.id);
-        showToast("Candidate hired — check the Onboarding tab", "success");
-      });
   });
 }
 

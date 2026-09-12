@@ -2,6 +2,7 @@ const TABS = [
   { key: "dashboard", label: "Dashboard" },
   { key: "screening", label: "Screening" },
   { key: "matching", label: "Matching" },
+  { key: "communication", label: "Communication" },
   { key: "scheduling", label: "Scheduling" },
   { key: "onboarding", label: "Onboarding" },
 ];

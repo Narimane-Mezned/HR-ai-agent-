@@ -7,6 +7,7 @@ import { renderLoginPage } from "./pages/login.page.js";
 import { renderDashboardPage } from "./pages/dashboard.page.js";
 import { renderScreeningPage } from "./pages/screening.page.js";
 import { renderMatchingPage } from "./pages/matching.page.js";
+import { renderCommunicationPage } from "./pages/communication.page.js";
 import {
   renderSchedulingPage,
   initScheduleModal,
@@ -18,6 +19,7 @@ const ROUTES = {
   dashboard: renderDashboardPage,
   screening: renderScreeningPage,
   matching: renderMatchingPage,
+  communication: renderCommunicationPage,
   scheduling: renderSchedulingPage,
   onboarding: renderOnboardingPage,
 };

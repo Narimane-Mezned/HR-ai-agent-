@@ -17,11 +17,14 @@ from app.db.candidates import (
 from app.db.screenings import (
     list_screenings_for_job, list_screenings_for_candidate,
     list_all_screenings_for_user, delete_screenings_for_candidate,
+    list_communication_queue, get_screening_with_details, update_screening_decision,
 )
 from app.graph.orchestrator import screen_candidates_for_job, run_and_save_screening
 from app.agents.scheduling_agent import propose_interview_slots, build_confirmation_message
 from app.db.interviews import create_interview, list_interviews_for_hr, list_interviews_today
 from app.db.users import UsernameAlreadyExistsError, create_user, verify_user, get_user_profile
+from app.agents.communication_agent import generate_candidate_email
+from app.email_service import send_email
 from app.auth import create_access_token, get_current_user
 from app.rag.job_store import index_jobs
 from app.agents.matching_agent import match_candidate_to_jobs
@@ -487,6 +490,55 @@ def api_candidate_resume(candidate_id: int, user: str = Depends(get_current_user
         raise HTTPException(status_code=404, detail="Resume file not found")
 
     return FileResponse(path, media_type="application/pdf", filename=f"{candidate['name']}_CV.pdf")
+
+DECISION_BY_ACTION = {
+    "preselection_refuse": "preselection_refused",
+    "preselection_accept": "preselection_accepted",
+    "total_refuse": "rejected",
+    "total_accept": "hired",
+}
+
+
+@app.get("/communication/candidates")
+def api_communication_candidates(user: str = Depends(get_current_user)):
+    return list_communication_queue(user)
+
+
+@app.post("/communication/screenings/{screening_id}/decide")
+def api_communication_decide(screening_id: int, action: str = Form(...), user: str = Depends(get_current_user)):
+    screening = get_screening_with_details(screening_id)
+    if not screening or screening["job_owner"] != user:
+        raise HTTPException(status_code=404, detail="Screening not found")
+    if action not in DECISION_BY_ACTION:
+        raise HTTPException(status_code=400, detail="Invalid action")
+
+    hr_profile = get_user_profile(user)
+    company_name = hr_profile.get("company_name") if hr_profile else ""
+
+    email_content = generate_candidate_email(
+        action, screening["candidate_name"], screening["job_title"], company_name
+    )
+
+    email_sent = False
+    if screening.get("candidate_email"):
+        try:
+            send_email(screening["candidate_email"], email_content["subject"], email_content["body"])
+            email_sent = True
+        except Exception as e:
+            logger.warning("Failed to send communication email for screening %s: %s", screening_id, e)
+
+    decision = DECISION_BY_ACTION[action]
+    update_screening_decision(screening_id, decision)
+
+    if action == "total_accept":
+        skills = json_lib.loads(screening["skills"]) if screening.get("skills") else []
+        checklist = generate_onboarding_checklist(
+            screening["job_title"], screening["job_description"], skills, screening.get("justification", "")
+        )
+        mark_candidate_hired(screening["candidate_id"], screening["job_id"], json_lib.dumps(checklist))
+
+    return {"ok": True, "decision": decision, "email_sent": email_sent}
+
 
 # --- onboarding ---
 

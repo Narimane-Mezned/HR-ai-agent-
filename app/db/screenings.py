@@ -86,3 +86,47 @@ def delete_screenings_for_candidate(candidate_id: int) -> None:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM screenings WHERE candidate_id = ?", (candidate_id,))
         conn.commit()
+
+
+def list_communication_queue(created_by: str) -> list[dict]:
+    with db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT screenings.*, candidates.name AS candidate_name, candidates.email AS candidate_email,
+                   jobs.title AS job_title
+            FROM screenings
+            JOIN candidates ON screenings.candidate_id = candidates.id
+            JOIN jobs ON screenings.job_id = jobs.id
+            WHERE jobs.created_by = ?
+            ORDER BY screenings.created_at DESC
+            """,
+            (created_by,),
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_screening_with_details(screening_id: int) -> dict | None:
+    with db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT screenings.*, candidates.name AS candidate_name, candidates.email AS candidate_email,
+                   jobs.title AS job_title, jobs.description AS job_description, jobs.created_by AS job_owner
+            FROM screenings
+            JOIN candidates ON screenings.candidate_id = candidates.id
+            JOIN jobs ON screenings.job_id = jobs.id
+            WHERE screenings.id = ?
+            """,
+            (screening_id,),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def update_screening_decision(screening_id: int, decision: str) -> bool:
+    with db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE screenings SET decision = ? WHERE id = ?", (decision, screening_id))
+        conn.commit()
+        return cursor.rowcount > 0

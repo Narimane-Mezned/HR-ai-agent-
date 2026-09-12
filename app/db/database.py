@@ -130,6 +130,7 @@ def init_db() -> None:
         ensure_column("candidates", "prescreening_flags", "TEXT")
         ensure_column("interviews", "reminder_sent", "INTEGER DEFAULT 0")
         ensure_column("candidates", "mentor_name", "TEXT")
+        ensure_column("screenings", "decision", "TEXT")
 
         conn.commit()
         logger.info("Database initialized at %s", DB_PATH)
