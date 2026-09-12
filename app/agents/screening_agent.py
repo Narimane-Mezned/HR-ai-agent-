@@ -45,6 +45,19 @@ CRITICAL RULES:
   without traditional job history, has ambiguous or missing dates, or is otherwise
   hard to evaluate confidently. Use "high" only when the CV clearly states relevant,
   dated experience directly comparable to the job description.
+- Be skeptical of skill lists that read like keyword dumps with no supporting
+  evidence — e.g. a long bare list of technologies with no project, role, or
+  achievement descriptions showing they were actually used. Weight skills backed
+  by concrete described experience (a project, a role, a measurable outcome) far
+  more heavily than skills that are merely named. A CV that lists many keywords
+  but demonstrates no real depth of experience with them should score similarly
+  to a CV with few relevant skills — do not let volume of keywords alone inflate
+  the score.
+- A candidate significantly more senior/experienced than the role requires is a
+  nuanced case, not an automatic rejection: score it as "Borderline" (with the
+  seniority mismatch and any retention/salary-expectation risk noted in the
+  justification) rather than "Not suitable", unless the candidate's actual skills
+  also fail to match the job's core requirements.
 - Base the score only on what's in the CV and job description below.
 - Do NOT think out loud, show your reasoning process, or write any explanation
   outside the JSON object. Any internal reasoning must stay inside the

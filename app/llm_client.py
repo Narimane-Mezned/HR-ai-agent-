@@ -15,7 +15,7 @@ client = OpenAI(
 
 PRICING_PER_MILLION_TOKENS = {
     "openai/gpt-oss-20b:free": {"input": 0.0, "output": 0.0},
-    "meta-llama/llama-3.3-70b-instruct:free": {"input": 0.0, "output": 0.0},
+    "nvidia/nemotron-3-super-120b-a12b:free": {"input": 0.0, "output": 0.0},
     "openrouter/free": {"input": 0.0, "output": 0.0},
 }
 

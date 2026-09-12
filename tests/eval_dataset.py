@@ -205,6 +205,38 @@ SYNTHETIC_CASES = [
         "expected_verdict": "Not suitable",
         "notes": "Adversarial-style case: keyword list with zero substantiating experience, projects, or education — tests that the model (and the hallucination guardrail) doesn't reward keyword-stuffing alone.",
     },
+    {
+        "case_id": "synthetic_french_cv_strong_match",
+        "cv_text": "Développeur Python senior, 5 ans d'expérience. A conçu des pipelines RAG avec FastAPI et FAISS. Solides bases en machine learning avec TensorFlow. A travaillé sur des systèmes de recherche sémantique en production.",
+        "job_description": SYNTHETIC_JOB,
+        "expected_score_range": (70, 100),
+        "expected_verdict": "Suitable",
+        "notes": "French-language CV against an English job description — tests that language mismatch alone doesn't lower the score when the underlying skills clearly match.",
+    },
+    {
+        "case_id": "synthetic_very_short_cv",
+        "cv_text": "Jean Dupont. Python developer.",
+        "job_description": SYNTHETIC_JOB,
+        "expected_score_range": (0, 30),
+        "expected_verdict": "Not suitable",
+        "notes": "Extremely sparse CV with almost no information — tests that the model doesn't hallucinate experience or over-credit a bare, unsupported claim of 'Python developer'.",
+    },
+    {
+        "case_id": "synthetic_unstructured_wall_of_text",
+        "cv_text": "i worked at a startup for a while doing backend stuff mostly with python and some fastapi and we built a chatbot thing that used embeddings and searched through documents it was pretty ML heavy and i also did some devops on the side but not much education wise i didnt finish my degree but i learned a lot on the job",
+        "job_description": SYNTHETIC_JOB,
+        "expected_score_range": (55, 85),
+        "expected_verdict": "Suitable",
+        "notes": "No punctuation, no section headers, no capitalization — a real CV parsed from a messy PDF export. Tests that scoring is robust to poor formatting rather than penalizing the candidate for presentation.",
+    },
+    {
+        "case_id": "synthetic_contradictory_cv",
+        "cv_text": "Summary: Expert in Python, FastAPI, machine learning, and RAG systems. Experience: 4 years as a warehouse logistics coordinator managing inventory spreadsheets in Excel. Education: high school diploma.",
+        "job_description": SYNTHETIC_JOB,
+        "expected_score_range": (0, 30),
+        "expected_verdict": "Not suitable",
+        "notes": "The summary claims exactly the skills the job wants, but the actual experience and education sections contradict it entirely — a more sophisticated form of the keyword-stuffing problem, testing whether the model checks the self-declared summary against the substantiated work history.",
+    },
 ]
 
 
