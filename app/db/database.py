@@ -92,6 +92,28 @@ def init_db() -> None:
 
 
         cursor.execute("""
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL,
+                token TEXT UNIQUE NOT NULL,
+                expires_at TEXT NOT NULL,
+                used INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS email_verification_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL,
+                token TEXT UNIQUE NOT NULL,
+                expires_at TEXT NOT NULL,
+                used INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
             CREATE UNIQUE INDEX IF NOT EXISTS idx_screenings_candidate_job
             ON screenings(candidate_id, job_id)
         """)
@@ -131,6 +153,8 @@ def init_db() -> None:
         ensure_column("interviews", "reminder_sent", "INTEGER DEFAULT 0")
         ensure_column("candidates", "mentor_name", "TEXT")
         ensure_column("screenings", "decision", "TEXT")
+        ensure_column("users", "email_verified", "INTEGER DEFAULT 0")
+        ensure_column("users", "admin_approved", "INTEGER DEFAULT 0")
 
         conn.commit()
         logger.info("Database initialized at %s", DB_PATH)

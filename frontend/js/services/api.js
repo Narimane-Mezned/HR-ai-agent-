@@ -22,7 +22,11 @@ export async function apiFetch(path, options = {}) {
   if (!res.ok) {
     const message =
       (data && (data.detail || data.error)) || `Request failed (${res.status})`;
-    throw new Error(message);
+    const error = new Error(message);
+    if (data && typeof data.retry_after === "number") {
+      error.retryAfter = data.retry_after;
+    }
+    throw error;
   }
   return data;
 }

@@ -1,9 +1,13 @@
 import {
   isAuthenticated,
   currentUsername,
+  isAdmin,
   logout,
 } from "./services/auth.service.js";
 import { renderLoginPage } from "./pages/login.page.js";
+import { renderResetPasswordPage } from "./pages/reset-password.page.js";
+import { renderVerifyEmailPage } from "./pages/verify-email.page.js";
+import { renderAdminPage } from "./pages/admin.page.js";
 import { renderDashboardPage } from "./pages/dashboard.page.js";
 import { renderScreeningPage } from "./pages/screening.page.js";
 import { renderMatchingPage } from "./pages/matching.page.js";
@@ -58,9 +62,28 @@ async function navigate(tabKey) {
   }
 }
 
+function parseHashToken() {
+  const hash = window.location.hash; // "#reset-password?token=..." or "#verify-email?token=..."
+  const queryIndex = hash.indexOf("?");
+  if (queryIndex === -1) return null;
+  return new URLSearchParams(hash.slice(queryIndex + 1)).get("token");
+}
+
 function handleHashChange() {
+  if (window.location.hash.startsWith("#reset-password")) {
+    showResetPassword(parseHashToken());
+    return;
+  }
+  if (window.location.hash.startsWith("#verify-email")) {
+    showVerifyEmail(parseHashToken());
+    return;
+  }
   if (!isAuthenticated()) {
     if (window.location.hash !== "#login") showLogin();
+    return;
+  }
+  if (isAdmin()) {
+    showAdmin();
     return;
   }
   const tabKey = window.location.hash.replace("#", "");
@@ -70,6 +93,11 @@ function handleHashChange() {
 window.addEventListener("hashchange", handleHashChange);
 
 export function showApp() {
+  if (isAdmin()) {
+    showAdmin();
+    return;
+  }
+
   document.getElementById("login-screen").style.display = "none";
   document.getElementById("app-screen").style.display = "flex";
 
@@ -87,11 +115,42 @@ export function showApp() {
   }
 }
 
+export function showAdmin() {
+  renderAdminPage(() => {
+    window.location.hash = "#login";
+    showLogin();
+  });
+}
+
 export function showLogin() {
   document.getElementById("app-screen").style.display = "none";
   renderLoginPage(showApp);
 }
 
+export function showResetPassword(token) {
+  document.getElementById("app-screen").style.display = "none";
+  renderResetPasswordPage(token, () => {
+    window.location.hash = "#login";
+    showLogin();
+  });
+}
+
+export function showVerifyEmail(token) {
+  document.getElementById("app-screen").style.display = "none";
+  renderVerifyEmailPage(token, () => {
+    window.location.hash = "#login";
+    showLogin();
+  });
+}
+
 export function startApp() {
+  if (window.location.hash.startsWith("#reset-password")) {
+    showResetPassword(parseHashToken());
+    return;
+  }
+  if (window.location.hash.startsWith("#verify-email")) {
+    showVerifyEmail(parseHashToken());
+    return;
+  }
   isAuthenticated() ? showApp() : showLogin();
 }

@@ -1,4 +1,4 @@
-import { login, register } from "../services/auth.service.js";
+import { login, register, forgotPassword } from "../services/auth.service.js";
 
 const EYE_OPEN = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
 const EYE_CLOSED = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
@@ -43,6 +43,36 @@ export function renderLoginPage(onSuccess) {
   const formArea = document.getElementById("form-area");
   const errorEl = document.getElementById("login-error");
 
+  let rateLimitTimer = null;
+
+  function showRateLimitCountdown(seconds) {
+    if (rateLimitTimer) clearInterval(rateLimitTimer);
+    let remaining = Math.max(1, Math.round(seconds));
+    errorEl.innerText = `Too many attempts. Try again in ${remaining}s...`;
+    rateLimitTimer = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(rateLimitTimer);
+        rateLimitTimer = null;
+        errorEl.innerText = "";
+      } else {
+        errorEl.innerText = `Too many attempts. Try again in ${remaining}s...`;
+      }
+    }, 1000);
+  }
+
+  function showError(err) {
+    if (typeof err.retryAfter === "number") {
+      showRateLimitCountdown(err.retryAfter);
+    } else {
+      if (rateLimitTimer) {
+        clearInterval(rateLimitTimer);
+        rateLimitTimer = null;
+      }
+      errorEl.innerText = err.message;
+    }
+  }
+
   function showLoginForm() {
     errorEl.innerText = "";
     formArea.innerHTML = `
@@ -54,6 +84,9 @@ export function renderLoginPage(onSuccess) {
         </div>
         <button type="submit" class="primary full">Log In</button>
       </form>
+      <div style="text-align:center; margin-top:10px;">
+        <a href="#" id="show-forgot-password" style="font-size:13px;">Forgot password?</a>
+      </div>
     `;
     attachPasswordToggle("li-password-toggle", "li-password");
     document
@@ -68,8 +101,14 @@ export function renderLoginPage(onSuccess) {
           );
           onSuccess();
         } catch (err) {
-          errorEl.innerText = err.message;
+          showError(err);
         }
+      });
+    document
+      .getElementById("show-forgot-password")
+      .addEventListener("click", async (e) => {
+        e.preventDefault();
+        await triggerForgotPassword();
       });
   }
 
@@ -84,7 +123,7 @@ export function renderLoginPage(onSuccess) {
         </div>
         <small style="color:#888; font-size:12px; display:block; margin-top:-8px;">Min. 8 characters, at least 1 number</small>
         <input id="re-company" placeholder="Company name" required>
-        <input id="re-email" type="email" placeholder="Email (optional)">
+        <input id="re-email" type="email" placeholder="Email" required>
         <button type="submit" class="primary full">Create account</button>
       </form>
     `;
@@ -101,17 +140,59 @@ export function renderLoginPage(onSuccess) {
           return;
         }
         try {
-          await register(
+          const result = await register(
             document.getElementById("re-username").value,
             password,
             document.getElementById("re-company").value,
             document.getElementById("re-email").value,
           );
-          onSuccess();
+          formArea.innerHTML = `
+            <p style="font-size:13px;">${result.message}</p>
+            <div style="text-align:center; margin-top:10px;">
+              <a href="#" id="back-to-login-after-register" style="font-size:13px;">Back to Log In</a>
+            </div>
+          `;
+          document
+            .getElementById("back-to-login-after-register")
+            .addEventListener("click", (e2) => {
+              e2.preventDefault();
+              showLoginForm();
+            });
         } catch (err) {
-          errorEl.innerText = err.message;
+          showError(err);
         }
       });
+  }
+
+  async function triggerForgotPassword() {
+    errorEl.innerText = "";
+    const username = (
+      document.getElementById("li-username")?.value || ""
+    ).trim();
+    if (!username) {
+      errorEl.innerText =
+        'Type your username above first, then click "Forgot password?"';
+      return;
+    }
+    formArea.innerHTML = `<p style="font-size:13px; color:#888;">Sending reset link...</p>`;
+    try {
+      const result = await forgotPassword(username);
+      formArea.innerHTML = `
+        <p style="font-size:13px;">${result.message}</p>
+        <div style="text-align:center; margin-top:10px;">
+          <a href="#" id="back-to-login-link" style="font-size:13px;">Back to Log In</a>
+        </div>
+      `;
+      document
+        .getElementById("back-to-login-link")
+        .addEventListener("click", (e) => {
+          e.preventDefault();
+          showLoginForm();
+        });
+    } catch (err) {
+      showLoginForm();
+      showError(err);
+    }
   }
 
   document

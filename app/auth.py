@@ -3,7 +3,7 @@ import re
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from jose import jwt, JWTError
-from fastapi import HTTPException, Header
+from fastapi import Depends, HTTPException, Header
 
 load_dotenv()
 
@@ -12,6 +12,9 @@ ALGORITHM = "HS256"
 TOKEN_EXPIRE_HOURS = 8
 
 PASSWORD_MIN_LENGTH = 8
+
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme123")
 
 
 def validate_password_strength(password: str) -> str | None:
@@ -44,3 +47,9 @@ def get_current_user(authorization: str = Header(...)) -> str:
         return username
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+def get_current_admin(user: str = Depends(get_current_user)) -> str:
+    if user.strip().lower() != ADMIN_USERNAME.lower():
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user

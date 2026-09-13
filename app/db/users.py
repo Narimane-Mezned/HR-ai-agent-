@@ -54,6 +54,65 @@ def get_user_profile(username: str) -> dict | None:
     normalized = username.strip().lower()
     with db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT username, company_name, email, created_at FROM users WHERE username = ?", (normalized,))
+        cursor.execute(
+            "SELECT username, company_name, email, created_at, email_verified, admin_approved FROM users WHERE username = ?",
+            (normalized,),
+        )
         row = cursor.fetchone()
         return dict(row) if row else None
+
+
+def mark_email_verified(username: str) -> None:
+    normalized = username.strip().lower()
+    with db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET email_verified = 1 WHERE username = ?", (normalized,))
+        conn.commit()
+
+
+def set_admin_approval(username: str, approved: bool) -> None:
+    normalized = username.strip().lower()
+    with db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET admin_approved = ? WHERE username = ?", (1 if approved else 0, normalized))
+        conn.commit()
+
+
+def list_pending_users() -> list[dict]:
+    with db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT username, company_name, email, created_at, email_verified, admin_approved "
+            "FROM users WHERE admin_approved = 0 ORDER BY created_at DESC"
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def delete_user(username: str) -> bool:
+    normalized = username.strip().lower()
+    with db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM users WHERE username = ?", (normalized,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def get_username_by_email(email: str) -> str | None:
+    normalized_email = email.strip().lower()
+    with db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT username FROM users WHERE lower(email) = ?", (normalized_email,))
+        row = cursor.fetchone()
+        return row["username"] if row else None
+
+
+def update_user_password(username: str, new_password: str) -> None:
+    normalized = username.strip().lower()
+    password_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    with db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE users SET password_hash = ? WHERE username = ?",
+            (password_hash, normalized),
+        )
+        conn.commit()

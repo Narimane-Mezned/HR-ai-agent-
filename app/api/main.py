@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 
 from app.db.database import init_db
@@ -24,10 +24,13 @@ from app.db.screenings import (
 from app.graph.orchestrator import screen_candidates_for_job, run_and_save_screening
 from app.agents.scheduling_agent import propose_interview_slots, build_confirmation_message
 from app.db.interviews import create_interview, list_interviews_for_hr, list_interviews_today
-from app.db.users import UsernameAlreadyExistsError, create_user, verify_user, get_user_profile
+from app.db.users import (
+    UsernameAlreadyExistsError, create_user, verify_user, get_user_profile, update_user_password,
+    mark_email_verified, list_pending_users, set_admin_approval, delete_user,
+)
 from app.agents.communication_agent import generate_candidate_email
 from app.email_service import send_email
-from app.auth import create_access_token, get_current_user, validate_password_strength
+from app.auth import create_access_token, get_current_user, get_current_admin, validate_password_strength, ADMIN_USERNAME, ADMIN_PASSWORD
 from app.rag.job_store import index_jobs
 from app.agents.matching_agent import match_candidate_to_jobs
 from app.agents.prescreening_agent import generate_prescreening_questions, analyze_prescreening_answers
@@ -36,11 +39,14 @@ from app.agents.onboarding_agent import generate_onboarding_checklist
 from app.db.candidates import mark_candidate_hired, list_hired_candidates, update_onboarding_checklist, update_mentor_name
 from app.calendar_service import create_calendar_event
 
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from fastapi import Request
 from app.pdf_utils import validate_pdf_upload
+from app.db.password_resets import create_reset_token, get_username_for_valid_token, mark_token_used
+from app.db.email_verifications import create_verification_token, get_username_for_valid_verification_token, mark_verification_token_used
+import re
 
 RESUMES_DIR = "data/resumes"
 os.makedirs(RESUMES_DIR, exist_ok=True)
@@ -60,7 +66,29 @@ logger = logging.getLogger(__name__)
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+def _retry_after_seconds(limit_detail: str) -> int:
+    # slowapi's exc.detail looks like "3 per 1 minute" -- turn that into a
+    # countdown length in seconds for the frontend, instead of showing this
+    # raw string to the user.
+    unit_seconds = {"second": 1, "minute": 60, "hour": 3600, "day": 86400}
+    match = re.match(r"\d+\s+per\s+(\d+)\s+(second|minute|hour|day)", str(limit_detail))
+    if not match:
+        return 60
+    amount, unit = match.groups()
+    return int(amount) * unit_seconds[unit]
+
+
+@app.exception_handler(RateLimitExceeded)
+def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    retry_after = _retry_after_seconds(exc.detail)
+    response = JSONResponse(
+        status_code=429,
+        content={"detail": "Too many attempts. Please try again shortly.", "retry_after": retry_after},
+    )
+    response.headers["Retry-After"] = str(retry_after)
+    return response
 
 @app.get("/")
 def root():
@@ -70,8 +98,10 @@ def root():
 # --- Auth ---
 
 @app.post("/register")
-def api_register(username: str = Form(...), password: str = Form(...), company_name: str = Form(...), email: str = Form("")):
+def api_register(request: Request, username: str = Form(...), password: str = Form(...), company_name: str = Form(...), email: str = Form(...)):
     normalized = username.strip().lower()
+    if not email.strip() or "@" not in email:
+        raise HTTPException(status_code=400, detail="A valid email is required.")
     password_error = validate_password_strength(password)
     if password_error:
         raise HTTPException(status_code=400, detail=password_error)
@@ -79,16 +109,113 @@ def api_register(username: str = Form(...), password: str = Form(...), company_n
         create_user(username, password, company_name, email)
     except UsernameAlreadyExistsError:
         raise HTTPException(status_code=409, detail="This username is already taken.")
-    token = create_access_token(normalized)  # auto-login: no separate login step needed
-    return {"access_token": token, "token_type": "bearer", "username": normalized}
+
+    token = create_verification_token(normalized)
+    verify_link = f"{str(request.base_url).rstrip('/')}/app#verify-email?token={token}"
+    try:
+        send_email(
+            email,
+            "Verify your HR AI Agent email",
+            "Thanks for registering. Please confirm this is your email address:\n\n"
+            f"{verify_link}\n\n"
+            "After that, an admin will review your account before you can log in.",
+        )
+    except Exception as e:
+        logger.warning("Failed to send verification email to %s: %s", email, e)
+
+    return {
+        "message": "Account created. Check your email to verify your address — an admin will then review your account before you can log in.",
+    }
 
 @app.post("/login")
-def api_login(username: str = Form(...), password: str = Form(...)):
+@limiter.limit("3/minute")
+def api_login(request: Request, username: str = Form(...), password: str = Form(...)):
+    normalized = username.strip().lower()
+    if normalized == ADMIN_USERNAME.lower() and password == ADMIN_PASSWORD:
+        token = create_access_token(normalized)
+        return {"access_token": token, "token_type": "bearer", "is_admin": True}
+
     if not verify_user(username, password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
-    normalized = username.strip().lower()
+    profile = get_user_profile(username)
+    if not profile.get("email_verified"):
+        raise HTTPException(status_code=403, detail="Please verify your email before logging in. Check your inbox for the verification link.")
+    if not profile.get("admin_approved"):
+        raise HTTPException(status_code=403, detail="Your account is awaiting admin approval.")
     token = create_access_token(normalized)  # token always uses normalized identity
-    return {"access_token": token, "token_type": "bearer"}
+    return {"access_token": token, "token_type": "bearer", "is_admin": False}
+
+
+@app.post("/verify-email")
+def api_verify_email(token: str = Form(...)):
+    username = get_username_for_valid_verification_token(token)
+    if not username:
+        raise HTTPException(status_code=400, detail="This verification link is invalid or has expired.")
+    mark_email_verified(username)
+    mark_verification_token_used(token)
+    return {"message": "Email verified. An admin will review your account before you can log in."}
+
+
+@app.get("/admin/pending-users")
+def api_admin_pending_users(admin: str = Depends(get_current_admin)):
+    return list_pending_users()
+
+
+@app.post("/admin/users/{username}/approve")
+def api_admin_approve_user(username: str, admin: str = Depends(get_current_admin)):
+    set_admin_approval(username, True)
+    return {"ok": True, "username": username.strip().lower(), "admin_approved": True}
+
+
+@app.post("/admin/users/{username}/reject")
+def api_admin_reject_user(username: str, admin: str = Depends(get_current_admin)):
+    deleted = delete_user(username)
+    return {"ok": deleted, "username": username.strip().lower()}
+
+
+def _mask_email(email: str) -> str:
+    local, _, domain = email.partition("@")
+    if len(local) <= 4:
+        masked_local = local[0] + "*" * max(len(local) - 1, 1)
+    else:
+        masked_local = local[:2] + "*" * (len(local) - 4) + local[-2:]
+    return f"{masked_local}@{domain}"
+
+
+@app.post("/forgot-password")
+@limiter.limit("3/minute")
+def api_forgot_password(request: Request, username: str = Form(...)):
+    profile = get_user_profile(username)
+    if not profile or not profile.get("email"):
+        return {"message": "If an account with that username exists, a reset link has been sent to the email on file."}
+
+    email = profile["email"]
+    token = create_reset_token(profile["username"])
+    reset_link = f"{str(request.base_url).rstrip('/')}/app#reset-password?token={token}"
+    try:
+        send_email(
+            email,
+            "Reset your HR AI Agent password",
+            "We received a request to reset your password.\n\n"
+            f"Click the link below to choose a new password (valid for 24 hours):\n{reset_link}\n\n"
+            "If you didn't request this, you can safely ignore this email.",
+        )
+    except Exception as e:
+        logger.warning("Failed to send password reset email to %s: %s", email, e)
+    return {"message": f"We've sent a reset link to {_mask_email(email)}."}
+
+
+@app.post("/reset-password")
+def api_reset_password(token: str = Form(...), new_password: str = Form(...)):
+    username = get_username_for_valid_token(token)
+    if not username:
+        raise HTTPException(status_code=400, detail="This reset link is invalid or has expired.")
+    password_error = validate_password_strength(new_password)
+    if password_error:
+        raise HTTPException(status_code=400, detail=password_error)
+    update_user_password(username, new_password)
+    mark_token_used(token)
+    return {"message": "Password updated. You can now log in with your new password."}
 
 
 # --- Jobs ---
