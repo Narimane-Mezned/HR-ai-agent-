@@ -1,5 +1,7 @@
 import tempfile
 import os
+import csv
+import io
 import json as json_lib
 import logging
 from collections import Counter
@@ -7,10 +9,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 
 from app.db.database import init_db
+from app.db.call_logs import init_call_logs_table
+from app.db.cache import init_cache_table
 from app.db.jobs import create_job, get_job, list_jobs, update_job, delete_job
 from app.db.candidates import (
     create_candidate, get_candidate, list_candidates,
@@ -54,6 +58,8 @@ os.makedirs(RESUMES_DIR, exist_ok=True)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    init_call_logs_table()
+    init_cache_table()
     yield
 
 
@@ -387,6 +393,36 @@ def api_screen_candidates(job_id: int, candidate_ids: str = Form(...), user: str
 def api_get_screenings(job_id: int, user: str = Depends(get_current_user)):
     _get_owned_job_or_404(job_id, user)
     return list_screenings_for_job(job_id)
+
+
+@app.get("/jobs/{job_id}/screenings/export")
+def api_export_screenings_csv(job_id: int, user: str = Depends(get_current_user)):
+    job = _get_owned_job_or_404(job_id, user)
+    screenings = list_screenings_for_job(job_id)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Candidate", "Score", "Verdict", "Category", "Years Experience",
+        "Education", "Skills", "Languages", "Location", "Confidence Level",
+        "Justification", "Decision",
+    ])
+    for s in screenings:
+        skills = ", ".join(json_lib.loads(s["skills"])) if s.get("skills") else ""
+        languages = ", ".join(json_lib.loads(s["languages"])) if s.get("languages") else ""
+        writer.writerow([
+            s.get("candidate_name", ""), s.get("score", ""), s.get("verdict", ""),
+            s.get("category", ""), s.get("years_experience", ""), s.get("education", ""),
+            skills, languages, s.get("location", ""), s.get("confidence_level", ""),
+            s.get("justification", ""), s.get("decision", ""),
+        ])
+
+    filename = f"{job['title'].replace(' ', '_')}_candidates.csv"
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # --- Scheduling ---

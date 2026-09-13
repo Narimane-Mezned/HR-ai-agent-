@@ -16,12 +16,19 @@ async function loadJob() {
     const job = await res.json();
     document.getElementById("apply-job-title").innerText = job.title;
     document.getElementById("apply-job-desc").innerText = job.description;
+  } catch (err) {
+    document.getElementById("apply-job-title").innerText = "Could not load job";
+    document.getElementById("apply-form").style.display = "none";
+    return;
+  }
+
+  try {
     const qRes = await fetch(`/public/jobs/${jobId}/prescreening-questions`);
     const qData = await qRes.json();
     prescreeningQuestions = qData.questions || [];
     renderQuestions();
   } catch (err) {
-    document.getElementById("apply-job-title").innerText = "Could not load job";
+    prescreeningQuestions = [];
   }
 }
 function renderQuestions() {

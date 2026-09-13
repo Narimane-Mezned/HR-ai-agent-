@@ -16,6 +16,7 @@ import {
 import {
   screenCandidates,
   getScreenings,
+  downloadScreeningsCsv,
 } from "../services/screenings.service.js";
 import { renderJobList } from "../components/job-list.js";
 import {
@@ -60,7 +61,10 @@ export async function renderScreeningPage() {
           <div id="pending-list"></div>
         </div>
         <div class="section">
-          <h4>Ranked candidates</h4>
+          <div class="col-header">
+            <h4>Ranked candidates</h4>
+            <button id="export-csv-btn" class="secondary small">Export CSV</button>
+          </div>
           <div id="candidate-results"></div>
         </div>
       </div>
@@ -161,6 +165,17 @@ export async function renderScreeningPage() {
     document.getElementById("job-form").dataset.editing = "";
     openModal(jobModal);
   });
+
+  document
+    .getElementById("export-csv-btn")
+    .addEventListener("click", async () => {
+      if (!activeJob) return;
+      try {
+        await downloadScreeningsCsv(activeJob.id, activeJob.title);
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+    });
 
   document.getElementById("job-form").addEventListener("submit", async (e) => {
     e.preventDefault();
